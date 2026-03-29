@@ -1,0 +1,18 @@
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# Spec / internal docs
+prompt.md
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
