@@ -1,0 +1,12 @@
+{
+    "version": 1,
+    "hemnet": {
+        "price": ["[data-testid='property-price']"],
+        "address": ["[data-testid='property-address']"],
+        "livingArea": ["[data-testid='property-attributes']"]
+    },
+    "booli": {
+        "price": ["[class*='Price']"],
+        "address": ["[class*='Address']"]
+    }
+}
