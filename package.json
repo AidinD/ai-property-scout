@@ -1,0 +1,13 @@
+{
+  "name": "ai-property-scout",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "npm run css && node esbuild.config.js",
+    "css": "tailwindcss -i src/sidebar.css -o dist/output.css"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.5",
+    "tailwindcss": "^3.4.0"
+  }
+}

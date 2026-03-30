@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "AI Property Scout",
+  "version": "1.7.6",
+  "description": "AI-analys av fastighetslistningar på Hemnet och Booli",
+  "permissions": ["storage", "scripting", "activeTab", "tabs", "alarms"],
+  "optional_host_permissions": ["*://*/*"],
+  "host_permissions": [
+    "https://*.hemnet.se/*",
+    "https://*.booli.se/*",
+    "https://gateway.ai.cloudflare.com/*",
+    "https://api.anthropic.com/*",
+    "https://api.openai.com/*",
+    "https://ai-property-scout-proxy.aipropertyscout-dev.workers.dev/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.hemnet.se/*", "https://*.booli.se/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["pdfExtractor.js", "sidebar.html", "output.css"],
+      "matches": ["https://*.hemnet.se/*", "https://*.booli.se/*"]
+    }
+  ],
+  "action": {
+    "default_popup": "options.html",
+    "default_title": "AI Property Scout"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "externally_connectable": {
+    "matches": [
+      "https://hemnet.se/*",
+      "https://www.hemnet.se/*",
+      "https://booli.se/*",
+      "https://www.booli.se/*"
+    ]
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

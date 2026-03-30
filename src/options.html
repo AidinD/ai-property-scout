@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Property Scout – Inställningar</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      background: #f5f6fa;
+      color: #1a1a2e;
+      min-width: 380px;
+      padding: 0;
+    }
+    .header {
+      background: #1a3c5e;
+      color: #fff;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .header h1 { font-size: 16px; font-weight: 700; }
+    .header .version { font-size: 11px; opacity: 0.6; margin-top: 2px; }
+    .content { padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; }
+    .section {
+      background: #fff;
+      border-radius: 10px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .section h2 {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #888;
+      margin-bottom: 12px;
+    }
+    .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label { font-size: 13px; color: #444; font-weight: 500; }
+    .field input, .field select {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus, .field select:focus { border-color: #1a3c5e; }
+    .field .hint { font-size: 11px; color: #999; }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      padding: 4px 0;
+    }
+    .toggle-row input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+    .toggle-row span { font-size: 13px; color: #333; flex: 1; }
+    .btn {
+      background: #1a3c5e;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 9px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 4px;
+    }
+    .btn:hover { background: #15304f; }
+    .btn.danger { background: #c62828; }
+    .btn.secondary { background: #e8f0fe; color: #1a3c5e; }
+    .status-msg {
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      margin-top: 8px;
+      display: none;
+    }
+    .status-msg.success { background: #e8f5e9; color: #2e7d32; display: block; }
+    .status-msg.error   { background: #ffebee; color: #c62828; display: block; }
+    .tier-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: 6px;
+    }
+    .tier-badge.consumer    { background: #e3f2fd; color: #1565c0; }
+    .tier-badge.broker_solo { background: #e8f5e9; color: #2e7d32; }
+    .tier-badge.broker_pro  { background: #fff3e0; color: #e65100; }
+    .tier-badge.whitelabel  { background: #f3e5f5; color: #6a1b9a; }
+    .hidden { display: none !important; }
+    .wl-preview {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 8px;
+      padding: 8px;
+      background: #f9fafb;
+      border-radius: 6px;
+    }
+    .wl-preview img { max-height: 40px; max-width: 80px; object-fit: contain; }
+  </style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <h1>🏠 AI Property Scout</h1>
+    <div class="version">v1.0.0 – Inställningar</div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- Mode -->
+  <div class="section">
+    <h2>Läge</h2>
+    <div class="field">
+      <label>Användarläge</label>
+      <select id="user-mode">
+        <option value="spekulant">Spekulantläge (köpare)</option>
+        <option value="maklare">Mäklarläge</option>
+      </select>
+    </div>
+    <div class="field" id="tier-display">
+      Aktiv tier: <span id="tier-label">consumer</span>
+      <span class="tier-badge consumer" id="tier-badge">Consumer</span>
+    </div>
+  </div>
+
+  <!-- License -->
+  <div class="section">
+    <h2>Licens</h2>
+    <div class="field">
+      <label>Licensnyckel (broker/whitelabel)</label>
+      <input type="text" id="license-key" placeholder="XXXX-XXXX-XXXX-XXXX">
+      <span class="hint">Lämna tomt för consumer-tier (gratis med egen API-nyckel)</span>
+    </div>
+    <button class="btn secondary" id="validate-license-btn">Validera licens</button>
+    <div class="status-msg" id="license-status"></div>
+  </div>
+
+  <!-- API Key (consumer only) -->
+  <div class="section" id="api-key-section">
+    <h2>API-nyckel (consumer)</h2>
+    <div class="field">
+      <label>AI-provider</label>
+      <select id="ai-provider">
+        <option value="anthropic">Anthropic (Claude)</option>
+        <option value="openai">OpenAI (GPT)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>API-nyckel</label>
+      <input type="password" id="api-key" placeholder="sk-ant-... eller sk-...">
+      <span class="hint">Lagras lokalt i webbläsaren – aldrig skickad till våra servrar</span>
+    </div>
+  </div>
+
+  <!-- White Label (broker/whitelabel only) -->
+  <div class="section hidden" id="whitelabel-section">
+    <h2>White Label</h2>
+    <div class="field">
+      <label>Mäklarnamn</label>
+      <input type="text" id="wl-name" placeholder="Erik Eriksson">
+    </div>
+    <div class="field">
+      <label>Mäklarfirma</label>
+      <input type="text" id="wl-firm" placeholder="Fastighetsbyrån Östermalm">
+    </div>
+    <div class="field">
+      <label>Telefon</label>
+      <input type="text" id="wl-phone" placeholder="070-123 45 67">
+    </div>
+    <div class="field">
+      <label>Primärfärg (hex)</label>
+      <input type="text" id="wl-color" placeholder="#003087" maxlength="7">
+    </div>
+    <div class="field">
+      <label>Logga (URL eller base64)</label>
+      <input type="text" id="wl-logo" placeholder="https://...">
+    </div>
+    <div class="wl-preview" id="wl-preview-wrap" style="display:none">
+      <img id="wl-preview-logo" alt="Logo preview">
+      <span id="wl-preview-name"></span>
+    </div>
+  </div>
+
+  <!-- Analytics -->
+  <div class="section">
+    <h2>Bidra till produktutveckling</h2>
+    <label class="toggle-row">
+      <input type="checkbox" id="analytics-optin">
+      <span>Skicka anonym användningsdata för att hjälpa oss förbättra Scout</span>
+    </label>
+    <p style="font-size:11px;color:#999;margin-top:8px;line-height:1.5">
+      Ingen personlig information samlas in. Inget IP, ingen adress, inga sökningar.
+      Endast anonyma händelser som "PDF analyserades". Du kan stänga av när som helst.
+    </p>
+  </div>
+
+  <!-- Save -->
+  <button class="btn" id="save-btn">Spara inställningar</button>
+  <div class="status-msg" id="save-status"></div>
+
+  <!-- Danger zone -->
+  <div class="section">
+    <h2>Rensa data</h2>
+    <button class="btn danger" id="clear-data-btn">Rensa all lokal data</button>
+    <div style="font-size:11px;color:#999;margin-top:6px">
+      Tar bort API-nyckel, licens, analytics-ID och event-kö.
+    </div>
+  </div>
+
+</div>
+
+<script src="options.js"></script>
+</body>
+</html>
