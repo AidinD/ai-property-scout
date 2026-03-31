@@ -1,13 +1,13 @@
 {
-    "version": 1,
+    "version": 2,
     "hemnet": {
-        "price":        ["[data-testid='property-price']",   ".property-price",   "h2[class*='price']"],
-        "address":      ["[data-testid='property-address']", "h1[class*='address']"],
-        "livingArea":   ["[data-testid='property-attributes']"],
-        "propertyType": ["[data-testid='property-type']",    "[class*='property-type']"]
+        "price":        ["h2[class*='NestTitle']", "h1[class*='NestTitle']", "[class*='nestTitle']", "[data-testid='property-price']"],
+        "address":      ["h1[class*='NestTitle']", "[class*='property-address']", "h1"],
+        "livingArea":   [],
+        "propertyType": []
     },
     "booli": {
-        "price":        ["[class*='Price']",   ".listing-price"],
+        "price":        ["[class*='Price']", ".listing-price"],
         "address":      ["[class*='Address']", "h1[class*='address']"],
         "livingArea":   ["[class*='Area']"],
         "propertyType": ["[class*='Type']"]

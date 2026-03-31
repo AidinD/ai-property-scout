@@ -40,9 +40,13 @@ function buildCard(item) {
   const { red = 0, yellow = 0, green = 0 } = item.riskSummary || {};
   const hasAnalyses = red > 0 || yellow > 0 || green > 0;
   const badges = [
-    red > 0 ? `<span class="risk-badge red">🔴 ${red}</span>` : "",
-    yellow > 0 ? `<span class="risk-badge yellow">🟡 ${yellow}</span>` : ""
+    red > 0    ? `<span class="risk-badge red">🔴 ${red}</span>` : "",
+    yellow > 0 ? `<span class="risk-badge yellow">🟡 ${yellow}</span>` : "",
+    green > 0  ? `<span class="risk-badge green">🟢 ${green}</span>` : ""
   ].filter(Boolean).join("");
+
+  const typeLabel = item.propertyType || "";
+  const priceLine = [item.price, typeLabel].filter(Boolean).join(" · ");
 
   const card = document.createElement("div");
   card.className = "listing-card";
@@ -56,16 +60,16 @@ function buildCard(item) {
           <div class="listing-address" style="flex:1;min-width:0">${item.address || "Okänd adress"}</div>
           <span class="status-pill" style="flex-shrink:0;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;border:1px solid;cursor:pointer;white-space:nowrap;user-select:none"></span>
         </div>
-        ${item.price ? `<div class="listing-price">${item.price}</div>` : ""}
+        ${priceLine ? `<div class="listing-price">${priceLine}</div>` : ""}
         <div class="listing-meta">
           <div class="risk-badges">${hasAnalyses
-            ? badges || '<span style="font-size:11px;color:#9ca3af">Inga röda/gula</span>'
+            ? badges
             : '<span style="font-size:11px;color:#9ca3af;font-style:italic">Ej analyserad</span>'
           }</div>
           <div class="listing-date">${formatDate(item.analyzedAt)}</div>
         </div>
       </div>
-      <button class="delete-btn" title="Ta bort" style="flex-shrink:0;background:none;border:none;cursor:pointer;color:#9ca3af;font-size:16px;padding:2px 4px;line-height:1;border-radius:4px;margin-left:2px">×</button>
+      <button class="delete-btn" title="Ta bort" style="flex-shrink:0;background:none;border:none;cursor:pointer;color:#9ca3af;font-size:16px;padding:2px 4px;line-height:1;border-radius:4px;margin-left:2px">🗑</button>
     </div>
   `;
 
@@ -191,4 +195,21 @@ async function loadPortfolio() {
   });
 }
 
+async function checkSetup() {
+  const stored = await chrome.storage.local.get(["apiKey", "license"]);
+  const hasKey = !!stored.apiKey;
+  const hasBrokerLicense = stored.license?.tier && stored.license.tier !== "consumer";
+  if (hasKey || hasBrokerLicense) {
+    return;
+  }
+  const banner = document.getElementById("setup-banner");
+  if (banner) {
+    banner.style.display = "flex";
+  }
+  document.getElementById("setup-banner-btn").addEventListener("click", () => {
+    chrome.runtime.openOptionsPage();
+  });
+}
+
+checkSetup();
 loadPortfolio();

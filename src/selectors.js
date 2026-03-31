@@ -1,5 +1,5 @@
 const SELECTOR_CONFIG_URL = "https://raw.githubusercontent.com/AidinD/ai-property-scout/main/selectors.json";
-const SELECTOR_VERSION = 1;
+const SELECTOR_VERSION = 2;
 
 export const DEFAULT_SELECTORS = {
   version: SELECTOR_VERSION,
@@ -63,7 +63,8 @@ export function scrapeField(selectors, doc = document) {
 }
 
 export function scoreScrapeHealth(data, site = "hemnet") {
-  const coreFields = ["price", "address", "livingArea"];
+  // Booli listings sometimes omit price ("kontakta mäklare") — not a scraping failure
+  const coreFields = site === "booli" ? ["address", "livingArea"] : ["price", "address", "livingArea"];
   const coreMissing = coreFields.filter((f) => !data[f]);
   if (coreMissing.length > 0) {
     return { status: "critical", missing: coreMissing };

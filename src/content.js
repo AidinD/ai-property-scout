@@ -26,29 +26,39 @@ async function saveToPortfolio(propertyData, label, data, docType) {
   }
   return new Promise((resolve) => {
     portfolioWriteQueue = portfolioWriteQueue.catch(() => {}).then(async () => {
-      const key = `listing_${id}`;
-      const stored = await chrome.storage.local.get(key);
-      const existing = stored[key] || {
-        listingId: id,
-        url: location.href,
-        address: propertyData.address || "",
-        price: propertyData.price || "",
-        propertyType: propertyData.propertyType || "",
-        analyzedAt: Date.now(),
-        analyses: [],
-        notes: ""
-      };
-      const entryIdx = existing.analyses.findIndex(a => a.label === label);
-      const entry = { label, data, docType, savedAt: Date.now() };
-      if (entryIdx >= 0) {
-        existing.analyses[entryIdx] = entry;
-      } else {
-        existing.analyses.push(entry);
+      try {
+        const key = `listing_${id}`;
+        const stored = await chrome.storage.local.get(key);
+        const existing = stored[key] || {
+          listingId: id,
+          url: location.href,
+          address: propertyData.address || "",
+          price: propertyData.price || "",
+          propertyType: propertyData.propertyType || "",
+          propertyClass: propertyData.propertyClass || "",
+          analyzedAt: Date.now(),
+          analyses: [],
+          notes: ""
+        };
+        const entryIdx = existing.analyses.findIndex(a => a.label === label);
+        const entry = { label, data, docType, savedAt: Date.now() };
+        if (entryIdx >= 0) {
+          existing.analyses[entryIdx] = entry;
+        } else {
+          existing.analyses.push(entry);
+        }
+        existing.analyzedAt = Date.now();
+        existing.propertyClass = propertyData.propertyClass || existing.propertyClass || "";
+        existing.propertyType = propertyData.propertyType || existing.propertyType || "";
+        await chrome.storage.local.set({ [key]: existing });
+        await updatePortfolioIndex(existing);
+        resolve();
+      } catch (e) {
+        if (!e?.message?.includes("Extension context invalidated")) {
+          console.warn("[Scout] saveToPortfolio error:", e);
+        }
+        resolve();
       }
-      existing.analyzedAt = Date.now();
-      await chrome.storage.local.set({ [key]: existing });
-      await updatePortfolioIndex(existing);
-      resolve();
     });
   });
 }
@@ -57,13 +67,17 @@ async function updatePortfolioIndex(listing) {
   const stored = await chrome.storage.local.get("portfolioIndex");
   let index = stored.portfolioIndex || [];
   const riskSummary = computeRiskSummary(listing.analyses);
+  const existing = index.find(e => e.listingId === listing.listingId);
   const entry = {
     listingId: listing.listingId,
     url: listing.url,
     address: listing.address,
     price: listing.price,
+    propertyType: listing.propertyType || "",
+    propertyClass: listing.propertyClass || "",
     analyzedAt: listing.analyzedAt,
-    riskSummary
+    riskSummary,
+    status: existing?.status || "ny"
   };
   const idx = index.findIndex(e => e.listingId === listing.listingId);
   if (idx >= 0) {
@@ -84,24 +98,34 @@ async function savePropertyOnly(propertyData) {
   }
   return new Promise((resolve) => {
     portfolioWriteQueue = portfolioWriteQueue.catch(() => {}).then(async () => {
-      const key = `listing_${id}`;
-      const stored = await chrome.storage.local.get(key);
-      const existing = stored[key] || {
-        listingId: id,
-        url: location.href,
-        address: propertyData.address || "",
-        price: propertyData.price || "",
-        propertyType: propertyData.propertyType || "",
-        analyzedAt: Date.now(),
-        analyses: [],
-        notes: ""
-      };
-      existing.url = location.href;
-      existing.address = propertyData.address || existing.address;
-      existing.price = propertyData.price || existing.price;
-      await chrome.storage.local.set({ [key]: existing });
-      await updatePortfolioIndex(existing);
-      resolve();
+      try {
+        const key = `listing_${id}`;
+        const stored = await chrome.storage.local.get(key);
+        const existing = stored[key] || {
+          listingId: id,
+          url: location.href,
+          address: propertyData.address || "",
+          price: propertyData.price || "",
+          propertyType: propertyData.propertyType || "",
+          propertyClass: propertyData.propertyClass || "",
+          analyzedAt: Date.now(),
+          analyses: [],
+          notes: ""
+        };
+        existing.url = location.href;
+        existing.address = propertyData.address || existing.address;
+        existing.price = propertyData.price || existing.price;
+        existing.propertyClass = propertyData.propertyClass || existing.propertyClass || "";
+        existing.propertyType = propertyData.propertyType || existing.propertyType || "";
+        await chrome.storage.local.set({ [key]: existing });
+        await updatePortfolioIndex(existing);
+        resolve();
+      } catch (e) {
+        if (!e?.message?.includes("Extension context invalidated")) {
+          console.warn("[Scout] savePropertyOnly error:", e);
+        }
+        resolve();
+      }
     });
   });
 }
@@ -211,7 +235,9 @@ async function scrapeProperty() {
         data.propertyType = "Fritidshus";
       } else if (typeSlug.startsWith("gard") || typeSlug.startsWith("lantbruk")) {
         data.propertyType = "Gård/Lantbruk";
-      } else if (typeSlug.startsWith("lagenhet") || typeSlug.startsWith("bostadsratt")) {
+      } else if (typeSlug.startsWith("lagenhet")) {
+        data.propertyType = "Lägenhet";
+      } else if (typeSlug.startsWith("bostadsratt")) {
         data.propertyType = "Bostadsrätt";
       } else if (typeSlug.startsWith("tomt")) {
         data.propertyType = "Tomt";
@@ -472,6 +498,18 @@ async function scrapeProperty() {
       const m = pageText.match(/är en (äganderätt|bostadsrätt)/i);
       if (m) {
         data.upplatelseform = m[1].charAt(0).toUpperCase() + m[1].slice(1);
+      }
+    }
+    if (!data.driftkostnad) {
+      // Booli: "Driftskostnaden är <strong>3 730</strong> kr/mån" in .info-point
+      const driftP = [...document.querySelectorAll("p")].find(
+        p => p.textContent.includes("Driftskostnaden är")
+      );
+      if (driftP) {
+        const strong = driftP.querySelector("strong");
+        if (strong) {
+          data.driftkostnad = strong.textContent.trim().replace(/\u00a0/g, " ") + " kr/mån";
+        }
       }
     }
     if (!data.uppvarmning) {
@@ -959,12 +997,8 @@ function buildSidebarHTML(data) {
       <textarea id="scout-notes-textarea" placeholder="Skriv egna noteringar om objektet…" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;min-height:70px;color:#1a1a2e;outline:none;background:#fafafa"></textarea>
     </div>
 
-    <!-- Upgrade CTA -->
-    <div id="scout-upgrade-cta" style="display:none;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px;margin-bottom:12px;font-size:13px">
-      <strong>Kvot uppnådd</strong><br>
-      <span id="scout-upgrade-msg" style="font-size:12px;color:#6b7280">Du har nått din månadsgräns – uppgradera eller vänta till nästa månad.</span>
-      <button class="scout-btn" style="margin-top:8px" id="scout-upgrade-btn">Uppgradera →</button>
-    </div>
+    <!-- Free tier counter -->
+    <div id="scout-free-counter" style="display:none;font-size:11px;color:#6b7280;text-align:center;margin-bottom:8px;padding:4px 0"></div>
 
   </div>
 </div>`;
@@ -1390,7 +1424,7 @@ function attachAgentPdfListeners(shadowRoot, propertyData) {
       btn.disabled = false;
       s("");
       if (response?.error) {
-        s(response.error === "no_api_key" ? "⚙️ API-nyckel saknas" : `⚠️ ${response.error.slice(0, 40)}`);
+        s(`⚠️ ${friendlyError(response.error)}`);
       } else {
         renderResults(response.data, response.docType || docType, response.truncated, label);
         if (pdfCacheKey) {
@@ -1513,6 +1547,12 @@ function buildListingAnalysisSection(data) {
       <div id="scout-listing-results"></div>
       <div id="scout-listing-refresh"></div>
       <button class="scout-btn secondary" id="scout-listing-analyze-btn">Analysera mäklartext</button>
+      <!-- Upgrade CTA (shown on quota_exceeded) -->
+      <div id="scout-upgrade-cta" style="display:none;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px;margin-top:10px;font-size:13px">
+        <strong id="scout-upgrade-title">Kvot uppnådd</strong><br>
+        <span id="scout-upgrade-msg" style="font-size:12px;color:#6b7280"></span>
+        <button class="scout-btn" style="margin-top:8px;width:100%" id="scout-upgrade-btn">Uppgradera →</button>
+      </div>
       <div id="scout-custom-prompt-section" style="margin-top:10px;border-top:1px solid #e5e7eb;padding-top:10px">
         <textarea id="scout-custom-prompt-input" placeholder="Ställ en egen fråga om fastigheten…" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;min-height:60px;color:#1a1a2e"></textarea>
         <button class="scout-btn secondary" id="scout-custom-prompt-btn" style="margin-top:6px;width:100%">Skicka fråga</button>
@@ -1534,7 +1574,7 @@ async function loadKeyInfoDetails(data) {
       beskrivning: data.beskrivning
     });
     if (response?.error) {
-      const msg = response.error === "no_api_key" ? "AI-detaljer kräver API-nyckel (Inställningar ⚙️)" : `AI-fel: ${response.error}`;
+      const msg = friendlyError(response.error);
       keyInfoAIData = Object.fromEntries(keyInfoFindings.map((f) => [f.key, msg]));
       return;
     } else if (response?.ok && response.data?.results) {
@@ -1652,7 +1692,31 @@ function attachSidebarListeners(data) {
   const räntaInput = shadowRoot.getElementById("scout-ränta-input");
   const räntaSlider = shadowRoot.getElementById("scout-ränta-slider");
   const listingAnalyzeBtn = shadowRoot.getElementById("scout-listing-analyze-btn");
+  const freeCounter = shadowRoot.getElementById("scout-free-counter");
   let collapsed = false;
+
+  // Determine tier and show free counter if applicable
+  const FREE_QUOTA_LIMIT = 10;
+  const LS_CONSUMER_PRO_URL = "https://aipropertyscout.lemonsqueezy.com/";
+  chrome.storage.local.get(["license", "apiKey", "freeAnalysesUsed"]).then(({ license, apiKey, freeAnalysesUsed }) => {
+    const tier = license?.tier;
+    const isBroker = tier && tier !== "consumer" && tier !== "consumer_pro";
+    const isConsumerPro = tier === "consumer_pro";
+    const isFreeTier = !tier && !apiKey;
+    if (isFreeTier && freeCounter) {
+      const used = freeAnalysesUsed || 0;
+      const remaining = Math.max(0, FREE_QUOTA_LIMIT - used);
+      freeCounter.style.display = "block";
+      freeCounter.textContent = `${remaining} av ${FREE_QUOTA_LIMIT} gratis analyser kvar`;
+    }
+    upgradeBtn?.addEventListener("click", () => {
+      if (isBroker || isConsumerPro) {
+        chrome.runtime.openOptionsPage();
+      } else {
+        window.open(LS_CONSUMER_PRO_URL, "_blank");
+      }
+    });
+  });
   let pdfContent = null;
   let docType = null;
   let propertyClass = data.propertyClass;
@@ -1697,9 +1761,8 @@ function attachSidebarListeners(data) {
       statusEl.classList.remove("visible");
     }
     if (response?.error) {
-      const msg = response.error === "no_api_key" ? "Ange din API-nyckel under Inställningar ⚙️" : `Fel: ${response.error}`;
       if (statusEl) {
-        statusEl.innerHTML = msg;
+        statusEl.innerHTML = friendlyError(response.error);
         statusEl.classList.add("visible");
       }
     } else if (resultsEl && response?.data) {
@@ -1756,9 +1819,8 @@ function attachSidebarListeners(data) {
       customPromptStatus.classList.remove("visible");
     }
     if (response?.error) {
-      const msg = response.error === "no_api_key" ? "Ange din API-nyckel under Inställningar ⚙️" : `Fel: ${response.error}`;
       if (customPromptStatus) {
-        customPromptStatus.innerHTML = msg;
+        customPromptStatus.innerHTML = friendlyError(response.error);
         customPromptStatus.classList.add("visible");
       }
     } else if (customPromptResult && response?.answer) {
@@ -1788,7 +1850,7 @@ function attachSidebarListeners(data) {
     }
     if (response?.error) {
       if (agentStatusEl) {
-        agentStatusEl.textContent = `Fel: ${response.error}`;
+        agentStatusEl.textContent = friendlyError(response.error);
         agentStatusEl.classList.add("visible");
       }
       agentFetchBtn.disabled = false;
@@ -2629,19 +2691,61 @@ function buildListingAnalysisResults(d) {
   return items.join("") || '<div class="scout-item info"><span class="icon">ℹ️</span><div class="scout-item-body"><p>Inga fynd att rapportera.</p></div></div>';
 }
 
-function handleAnalysisError(errorMsg) {
+function friendlyError(errorMsg) {
   if (errorMsg === "quota_exceeded") {
-    const cta = shadowRoot?.getElementById("scout-upgrade-cta");
-    if (cta) {
-      cta.style.display = "block";
-    }
-    return;
+    showUpgradeCta();
+    return "";
   }
   if (errorMsg === "no_api_key") {
-    setStatus("Ange din API-nyckel under Inställningar ⚙️");
+    return "Ange din API-nyckel under Inställningar ⚙️";
+  }
+  if (errorMsg?.includes("401")) {
+    return "Ogiltig API-nyckel — kontrollera din nyckel under Inställningar ⚙️";
+  }
+  if (errorMsg?.includes("429")) {
+    return "Rate limit nådd — försök igen om en stund";
+  }
+  if (errorMsg?.includes("500") || errorMsg?.includes("502") || errorMsg?.includes("503")) {
+    return "AI-tjänsten är tillfälligt otillgänglig — försök igen om en stund";
+  }
+  return `Fel: ${errorMsg}`;
+}
+
+function handleAnalysisError(errorMsg) {
+  if (errorMsg === "quota_exceeded") {
+    showUpgradeCta();
     return;
   }
-  setStatus(`Fel: ${errorMsg}`);
+  setStatus(friendlyError(errorMsg));
+}
+
+function showUpgradeCta() {
+  const cta = shadowRoot?.getElementById("scout-upgrade-cta");
+  const titleEl = shadowRoot?.getElementById("scout-upgrade-title");
+  const msgEl = shadowRoot?.getElementById("scout-upgrade-msg");
+  if (cta) {
+    cta.style.display = "block";
+    cta.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  chrome.storage.local.get(["license", "apiKey"]).then(({ license, apiKey }) => {
+    const isFreeTier = !license?.tier && !apiKey;
+    if (isFreeTier) {
+      if (titleEl) {
+        titleEl.textContent = "Gratis-gränsen nådd";
+      }
+      if (msgEl) {
+        msgEl.textContent = "Du har använt dina 10 gratis analyser. Uppgradera till Consumer Pro för 50 analyser/mån.";
+      }
+    } else {
+      if (titleEl) {
+        titleEl.textContent = "Månadsgränsen nådd";
+      }
+      if (msgEl) {
+        msgEl.textContent = "Du har nått din kvot för den här månaden. Vänta till nästa månad eller kontakta support för att utöka kvoten.";
+      }
+    }
+  });
+  trackEvent("upgrade_cta_shown", { feature: "quota" });
 }
 
 function resetSidebar() {
@@ -2696,15 +2800,7 @@ function resetSidebar() {
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "SIDEBAR_STATUS") {
     if (msg.status === "quota_exceeded") {
-      const cta = shadowRoot?.getElementById("scout-upgrade-cta");
-      const msgEl = shadowRoot?.getElementById("scout-upgrade-msg");
-      if (cta) {
-        cta.style.display = "block";
-      }
-      if (msgEl) {
-        msgEl.textContent = "Du har nått din månadsgräns – uppgradera eller vänta till nästa månad.";
-      }
-      trackEvent("upgrade_cta_shown", { feature: "quota" });
+      showUpgradeCta();
     } else if (msg.status === "rate_limit") {
       setStatus(`<span class="scout-spinner"></span> ${msg.msg}`);
     }

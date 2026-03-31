@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Property Scout — Mockup</title>
+<style>
+  body { margin: 0; background: #e8edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .scene { display: flex; align-items: flex-start; justify-content: center; padding: 40px 20px; gap: 40px; flex-wrap: wrap; }
+  .scene-label { text-align: center; font-size: 12px; color: #888; margin-top: 8px; }
+
+  /* ---- SIDEBAR ---- */
+  *, *::before, *::after { box-sizing: border-box; }
+  .scout-sidebar {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    width: 380px; height: 820px;
+    background: #f4f6f9;
+    box-shadow: -3px 0 20px rgba(0,0,0,0.18);
+    display: flex; flex-direction: column;
+    border-radius: 12px; overflow: hidden;
+  }
+  .scout-header {
+    background: linear-gradient(135deg, #1a3c5e 0%, #254e7a 100%);
+    color: #fff; padding: 13px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .scout-header-title { font-size: 13px; font-weight: 700; letter-spacing: 0.4px; }
+  .scout-toggle { font-size: 11px; opacity: 0.7; }
+  .scout-body { flex: 1; overflow-y: auto; padding: 14px 12px; }
+  .scout-card {
+    background: #fff; border-radius: 10px; padding: 12px 14px;
+    margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  }
+  .scout-section-title {
+    font-size: 10px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.7px; color: #8a96a3; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .scout-section-title::before {
+    content: ''; display: inline-block; width: 3px; height: 12px;
+    background: #1a3c5e; border-radius: 2px; flex-shrink: 0;
+  }
+  .scout-address { font-size: 15px; font-weight: 700; color: #1a1a2e; line-height: 1.3; }
+  .scout-price { font-size: 18px; font-weight: 800; color: #1a3c5e; margin: 3px 0 8px; }
+  .scout-quick-badges { display: flex; flex-wrap: wrap; gap: 5px; }
+  .scout-quick-badge {
+    background: #e8f0fe; color: #1a3c5e; font-size: 11px; font-weight: 600;
+    padding: 2px 8px; border-radius: 10px;
+  }
+  .scout-kv {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12.5px; padding: 5px 0; border-bottom: 1px solid #f0f2f5;
+  }
+  .scout-kv:last-child { border-bottom: none; }
+  .scout-kv-label { color: #6b7280; }
+  .scout-kv-value { font-weight: 600; color: #1a1a2e; text-align: right; }
+  .scout-kv.total .scout-kv-label { color: #1a1a2e; font-weight: 700; }
+  .scout-kv.total .scout-kv-value { color: #1a3c5e; font-weight: 800; font-size: 14px; }
+  .scout-kv.netto .scout-kv-value { color: #2e7d32; font-weight: 700; }
+  .scout-kv.muted .scout-kv-label { color: #9ca3af; font-size: 11.5px; }
+  .scout-kv.muted .scout-kv-value { color: #9ca3af; font-size: 11.5px; font-weight: 500; }
+  .scout-energy-badge {
+    display: inline-block; font-size: 11px; font-weight: 800;
+    padding: 1px 7px; border-radius: 4px; color: #fff;
+  }
+  .scout-energy-C { background: #558b2f; }
+  .scout-energy-D { background: #f9a825; color: #333; }
+  .scout-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 7px 9px; border-radius: 7px; margin-bottom: 5px;
+    font-size: 12.5px; line-height: 1.4;
+  }
+  .scout-item.red    { background: #fff5f5; border: 1px solid #fecaca; }
+  .scout-item.yellow { background: #fffbeb; border: 1px solid #fde68a; }
+  .scout-item.green  { background: #f0fdf4; border: 1px solid #bbf7d0; }
+  .scout-item.info   { background: #eff6ff; border: 1px solid #bfdbfe; }
+  .scout-item .icon  { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .scout-item-body strong { display: block; font-weight: 600; font-size: 12.5px; color: #1a1a2e; }
+  .scout-item-body p { margin: 2px 0 0; color: #555; font-size: 11.5px; line-height: 1.3; }
+  .scout-btn {
+    background: #1a3c5e; color: #fff; border: none; border-radius: 7px;
+    padding: 9px 14px; font-size: 13px; font-weight: 600;
+    cursor: pointer; width: 100%; margin-top: 4px;
+  }
+  .scout-btn.secondary { background: #e8f0fe; color: #1a3c5e; margin-top: 6px; }
+  .scout-drop-zone {
+    border: 2px dashed #c9d4df; border-radius: 8px; padding: 16px;
+    text-align: center; font-size: 12px; color: #6b7280;
+    background: #f9fafb; margin-bottom: 8px;
+  }
+  .scout-ränta-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+  .scout-ränta-row label { font-size: 11px; color: #6b7280; font-weight: 500; flex-shrink: 0; }
+  .scout-ränta-row input[type="number"] {
+    width: 60px; border: 1px solid #e5e7eb; border-radius: 6px;
+    padding: 5px 8px; font-size: 13px; text-align: center; background: #f9fafb;
+  }
+  .scout-ränta-row input[type="range"] { flex: 1; accent-color: #1a3c5e; }
+  .scout-calc-group-label {
+    font-size: 10px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.6px; color: #8a96a3; margin: 10px 0 5px;
+  }
+  .scout-field { display: flex; flex-direction: column; margin-bottom: 8px; }
+  .scout-field label { font-size: 11px; color: #6b7280; margin-bottom: 3px; font-weight: 500; }
+  .scout-field input {
+    border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 10px;
+    font-size: 13px; background: #f9fafb;
+  }
+  .scout-broker-badge {
+    background: #dcfce7; color: #166534; font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: 8px; margin-left: 8px;
+  }
+  .highlight-chip {
+    background: #fee2e2; color: #991b1b; font-size: 11px; font-weight: 600;
+    padding: 2px 8px; border-radius: 10px; display: inline-block; margin: 2px 2px 2px 0;
+  }
+  .highlight-chip.yellow { background: #fef9c3; color: #854d0e; }
+  .highlight-chip.green  { background: #dcfce7; color: #166534; }
+
+  /* ---- POPUP ---- */
+  .scout-popup {
+    width: 400px;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  .popup-header {
+    background: linear-gradient(135deg, #1a3c5e 0%, #254e7a 100%);
+    color: #fff; padding: 14px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .popup-header-title { font-size: 14px; font-weight: 700; }
+  .popup-settings-btn {
+    background: rgba(255,255,255,0.15); border: none; color: #fff;
+    border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+  }
+  .popup-body { padding: 12px; background: #f4f6f9; }
+  .popup-section-title {
+    font-size: 10px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.7px; color: #8a96a3; margin-bottom: 8px;
+  }
+  .portfolio-card {
+    background: #fff; border-radius: 8px; padding: 10px 12px;
+    margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    cursor: pointer;
+  }
+  .portfolio-card:hover { background: #f8faff; }
+  .portfolio-card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .portfolio-card-address { font-size: 13px; font-weight: 700; color: #1a1a2e; }
+  .portfolio-card-price { font-size: 12px; font-weight: 600; color: #1a3c5e; margin-top: 2px; }
+  .portfolio-card-meta { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+  .risk-badges { display: flex; gap: 4px; }
+  .risk-badge { font-size: 11px; padding: 1px 6px; border-radius: 8px; font-weight: 600; }
+  .risk-badge.red    { background: #fee2e2; color: #991b1b; }
+  .risk-badge.yellow { background: #fef9c3; color: #854d0e; }
+  .risk-badge.green  { background: #dcfce7; color: #166534; }
+</style>
+</head>
+<body>
+
+<div class="scene">
+
+  <!-- SIDEBAR 1: AI-analys -->
+  <div>
+    <div class="scout-sidebar">
+      <div class="scout-header">
+        <span class="scout-toggle">◀</span>
+        <span class="scout-header-title">AI Property Scout</span>
+      </div>
+      <div class="scout-body">
+
+        <!-- Fastighet -->
+        <div class="scout-card">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+            <div style="flex:1">
+              <div class="scout-section-title">Fastighet</div>
+              <div class="scout-address">Storgatan 14, Göteborg</div>
+              <div class="scout-price">4 250 000 kr</div>
+              <div class="scout-quick-badges">
+                <span class="scout-quick-badge">Villa</span>
+                <span class="scout-quick-badge">5 rum</span>
+                <span class="scout-quick-badge">142 m²</span>
+              </div>
+            </div>
+            <button style="background:none;border:1px solid #d1d5db;border-radius:6px;padding:4px 7px;font-size:14px;color:#6b7280;cursor:pointer">📌</button>
+          </div>
+        </div>
+
+        <!-- Fakta -->
+        <div class="scout-card">
+          <div class="scout-section-title">Fakta</div>
+          <div class="scout-kv"><span class="scout-kv-label">Boarea</span><span class="scout-kv-value">142 m²</span></div>
+          <div class="scout-kv"><span class="scout-kv-label">Rum</span><span class="scout-kv-value">5 rum</span></div>
+          <div class="scout-kv"><span class="scout-kv-label">Byggår</span><span class="scout-kv-value">1967</span></div>
+          <div class="scout-kv"><span class="scout-kv-label">Tomtstorlek</span><span class="scout-kv-value">620 m²</span></div>
+          <div class="scout-kv"><span class="scout-kv-label">Driftkostnad</span><span class="scout-kv-value">3 200 kr/mån</span></div>
+          <div class="scout-kv"><span class="scout-kv-label">Upplåtelseform</span><span class="scout-kv-value">Äganderätt</span></div>
+          <div class="scout-kv"><span class="scout-kv-label">Energiklass</span><span class="scout-kv-value"><span class="scout-energy-badge scout-energy-D">D</span></span></div>
+          <div class="scout-kv"><span class="scout-kv-label">Lagfart (est.)</span><span class="scout-kv-value">~64 575 kr</span></div>
+        </div>
+
+        <!-- Nyckelinfo -->
+        <div class="scout-card">
+          <div class="scout-section-title">Mäklartext — nyckelinfo</div>
+          <div style="margin-bottom:6px">
+            <span style="font-size:11px;color:#6b7280;display:block;margin-bottom:4px">🚩 Röda flaggor</span>
+            <span class="highlight-chip">originalskick</span>
+            <span class="highlight-chip">renoveringsbehov</span>
+          </div>
+          <div>
+            <span style="font-size:11px;color:#6b7280;display:block;margin-bottom:4px">⚠️ Gula flaggor</span>
+            <span class="highlight-chip yellow">potential</span>
+            <span class="highlight-chip yellow">äldre standard</span>
+          </div>
+        </div>
+
+        <!-- AI-analys -->
+        <div class="scout-card">
+          <div class="scout-section-title">Annonsanalys (AI)</div>
+          <div class="scout-item red">
+            <span class="icon">🔴</span>
+            <div class="scout-item-body">
+              <strong>Renovering krävs</strong>
+              <p>Kök och badrum i originalskick från 1967. Renovering troligen nödvändig inom 1–3 år.</p>
+            </div>
+          </div>
+          <div class="scout-item red">
+            <span class="icon">🔴</span>
+            <div class="scout-item-body">
+              <strong>Energiklass D</strong>
+              <p>Hög energiförbrukning. Kontrollera isolering och uppvärmningssystem.</p>
+            </div>
+          </div>
+          <div class="scout-item yellow">
+            <span class="icon">🟡</span>
+            <div class="scout-item-body">
+              <strong>Byggår 1967</strong>
+              <p>Åldersrelaterade dolda fel möjliga. Besiktning rekommenderas.</p>
+            </div>
+          </div>
+          <div class="scout-item green">
+            <span class="icon">🟢</span>
+            <div class="scout-item-body">
+              <strong>Stor tomt</strong>
+              <p>620 m² med söderläge — bra potential för tillbyggnad.</p>
+            </div>
+          </div>
+          <div class="scout-item green">
+            <span class="icon">🟢</span>
+            <div class="scout-item-body">
+              <strong>Lugnt läge</strong>
+              <p>Centralt men stilla gata, nära skola och kollektivtrafik.</p>
+            </div>
+          </div>
+          <button class="scout-btn secondary" style="margin-top:8px">🔄 Analysera om</button>
+        </div>
+
+      </div>
+    </div>
+    <div class="scene-label">Sidebar — AI-analys</div>
+  </div>
+
+  <!-- SIDEBAR 2: Kostnadskalkyl -->
+  <div>
+    <div class="scout-sidebar">
+      <div class="scout-header">
+        <span class="scout-toggle">◀</span>
+        <span class="scout-header-title">AI Property Scout</span>
+      </div>
+      <div class="scout-body">
+
+        <!-- Fastighet -->
+        <div class="scout-card">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+            <div style="flex:1">
+              <div class="scout-section-title">Fastighet</div>
+              <div class="scout-address">Storgatan 14, Göteborg</div>
+              <div class="scout-price">4 250 000 kr</div>
+              <div class="scout-quick-badges">
+                <span class="scout-quick-badge">Villa</span>
+                <span class="scout-quick-badge">5 rum</span>
+                <span class="scout-quick-badge">142 m²</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kalkyl -->
+        <div class="scout-card">
+          <div class="scout-section-title">Kostnadskalkyl</div>
+
+          <div class="scout-field">
+            <label>Kontantinsats (kr)</label>
+            <input type="number" value="850000" readonly style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:6px 10px;font-size:13px;width:100%">
+          </div>
+
+          <div class="scout-ränta-row">
+            <label>Ränta %</label>
+            <input type="number" value="4.25" readonly style="width:60px;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:13px;text-align:center;background:#f9fafb">
+            <input type="range" value="4.25" min="0.5" max="15" step="0.25" style="flex:1;accent-color:#1a3c5e">
+          </div>
+
+          <div class="scout-calc-group-label">Engångskostnader</div>
+          <div class="scout-kv muted"><span class="scout-kv-label">Lagfart</span><span class="scout-kv-value">64 575 kr</span></div>
+          <div class="scout-kv muted"><span class="scout-kv-label">Pantbrev (ny)</span><span class="scout-kv-value">55 375 kr</span></div>
+          <div class="scout-kv total"><span class="scout-kv-label">Totalt vid köp</span><span class="scout-kv-value">969 950 kr</span></div>
+
+          <div class="scout-calc-group-label">Månadskostnad</div>
+          <div class="scout-kv muted"><span class="scout-kv-label">Ränta (brutto)</span><span class="scout-kv-value">12 112 kr/mån</span></div>
+          <div class="scout-kv muted"><span class="scout-kv-label">Ränteavdrag (30%)</span><span class="scout-kv-value">−3 634 kr/mån</span></div>
+          <div class="scout-kv muted"><span class="scout-kv-label">Amortering (2%)</span><span class="scout-kv-value">5 667 kr/mån</span></div>
+          <div class="scout-kv muted"><span class="scout-kv-label">Driftkostnad</span><span class="scout-kv-value">3 200 kr/mån</span></div>
+          <div class="scout-kv muted"><span class="scout-kv-label">Fastighetsavgift</span><span class="scout-kv-value">376 kr/mån</span></div>
+          <div style="height:1px;background:#f0f2f5;margin:6px 0"></div>
+          <div class="scout-kv total"><span class="scout-kv-label">Totalt/mån (brutto)</span><span class="scout-kv-value">21 355 kr/mån</span></div>
+          <div class="scout-kv netto"><span class="scout-kv-label" style="color:#2e7d32;font-weight:700">Nettokostnad/mån</span><span class="scout-kv-value">17 721 kr/mån</span></div>
+        </div>
+
+        <!-- PDF drop -->
+        <div class="scout-card">
+          <div class="scout-section-title">Dokumentanalys (AI)</div>
+          <div class="scout-drop-zone">
+            <div style="font-size:22px;margin-bottom:6px">📄</div>
+            <div style="font-weight:600;font-size:12px">Släpp årsredovisning eller besiktningsprotokoll</div>
+            <div style="margin-top:4px;font-size:11px;color:#9ca3af">PDF, TXT eller klistra in text</div>
+          </div>
+          <button class="scout-btn" style="background:#c9d1da;cursor:not-allowed">Analysera dokument</button>
+        </div>
+
+      </div>
+    </div>
+    <div class="scene-label">Sidebar — Kostnadskalkyl</div>
+  </div>
+
+  <!-- POPUP: Portfolio -->
+  <div>
+    <div class="scout-popup">
+      <div class="popup-header">
+        <span class="popup-header-title">AI Property Scout</span>
+        <button class="popup-settings-btn">⚙ Inställningar</button>
+      </div>
+      <div class="popup-body">
+        <div class="popup-section-title">Min portfolio (3 objekt)</div>
+
+        <div class="portfolio-card">
+          <div class="portfolio-card-top">
+            <div>
+              <div class="portfolio-card-address">Storgatan 14, Göteborg</div>
+              <div class="portfolio-card-price">4 250 000 kr · Villa</div>
+            </div>
+            <div class="risk-badges">
+              <span class="risk-badge red">🔴 2</span>
+              <span class="risk-badge yellow">🟡 1</span>
+              <span class="risk-badge green">🟢 2</span>
+            </div>
+          </div>
+          <div class="portfolio-card-meta">Analyserad 2026-03-31 · Hemnet</div>
+        </div>
+
+        <div class="portfolio-card">
+          <div class="portfolio-card-top">
+            <div>
+              <div class="portfolio-card-address">Björkvägen 3, Stockholm</div>
+              <div class="portfolio-card-price">3 650 000 kr · BRF</div>
+            </div>
+            <div class="risk-badges">
+              <span class="risk-badge red">🔴 1</span>
+              <span class="risk-badge yellow">🟡 3</span>
+              <span class="risk-badge green">🟢 4</span>
+            </div>
+          </div>
+          <div class="portfolio-card-meta">Analyserad 2026-03-30 · Hemnet</div>
+        </div>
+
+        <div class="portfolio-card">
+          <div class="portfolio-card-top">
+            <div>
+              <div class="portfolio-card-address">Havsutsikten 7, Varberg</div>
+              <div class="portfolio-card-price">2 990 000 kr · Fritidshus</div>
+            </div>
+            <div class="risk-badges">
+              <span class="risk-badge yellow">🟡 2</span>
+              <span class="risk-badge green">🟢 5</span>
+            </div>
+          </div>
+          <div class="portfolio-card-meta">Analyserad 2026-03-29 · Booli</div>
+        </div>
+
+      </div>
+    </div>
+    <div class="scene-label">Popup — Portfolio</div>
+  </div>
+
+</div>
+
+</body>
+</html>

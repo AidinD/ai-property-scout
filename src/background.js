@@ -19,18 +19,15 @@ const BROKER_MODEL_ANTHROPIC = "claude-sonnet-4-6";
 const BROKER_MODEL_OPENAI = "gpt-4o";
 const CONSUMER_DEFAULT_MODEL_ANTHROPIC = "claude-sonnet-4-6";
 const CONSUMER_DEFAULT_MODEL_OPENAI = "gpt-4o";
-// Cheaper models for structured PDF extraction — quality is sufficient for JSON schemas
+// Cheaper models for PDF extraction and free/consumer_pro tier
 const ANALYZE_MODEL_ANTHROPIC = "claude-haiku-4-5-20251001";
 const ANALYZE_MODEL_OPENAI = "gpt-4o-mini";
 
 const LS_VARIANT_TIERS = {
-  123456: "consumer",
-  123457: "consumer",
-  123458: "broker_solo",
-  123459: "broker_solo",
-  123460: "broker_pro",
-  123461: "broker_pro",
-  123462: "whitelabel"
+  936197: "consumer_pro",
+  936220: "broker_solo",
+  936227: "broker_pro",
+  936245: "whitelabel"
 };
 
 let currentAbortController = null;
@@ -65,11 +62,12 @@ async function validateLicense(licenseKey) {
   return tier;
 }
 
-async function callAI(payload) {
-  const { license, apiKey, aiProvider } = await chrome.storage.local.get([
+async function callAI(payload, analysisType = "listing") {
+  const { license, apiKey, aiProvider, analyticsUserId } = await chrome.storage.local.get([
     "license",
     "apiKey",
-    "aiProvider"
+    "aiProvider",
+    "analyticsUserId"
   ]);
   async function doFetch(url, options) {
     currentAbortController = new AbortController();
@@ -93,33 +91,46 @@ async function callAI(payload) {
   }
   const VALID_PROVIDERS = ["anthropic", "openai"];
   const safeProvider = VALID_PROVIDERS.includes(aiProvider) ? aiProvider : "anthropic";
-  const isBroker = license?.tier && license.tier !== "consumer";
+  const tier = license?.tier;
+  const isBroker = tier && tier !== "consumer" && tier !== "consumer_pro";
+  const isConsumerPro = tier === "consumer_pro";
+  // Route via CF Worker if: broker, consumer_pro, or no own API key (free tier)
+  const useProxy = isBroker || isConsumerPro || !apiKey;
   // Native PDF API (type: "document" content blocks) requires this beta header
   const hasPdfDocs = payload.body?.messages?.some(m =>
     Array.isArray(m.content) && m.content.some(c => c.type === "document")
   );
-  if (isBroker) {
-    // Allow per-call model override (e.g. haiku for PDF analysis), fall back to broker default
-    const defaultModel = safeProvider === "openai" ? BROKER_MODEL_OPENAI : BROKER_MODEL_ANTHROPIC;
+  if (useProxy) {
+    const defaultModel = isBroker
+      ? (safeProvider === "openai" ? BROKER_MODEL_OPENAI : BROKER_MODEL_ANTHROPIC)
+      : (safeProvider === "openai" ? ANALYZE_MODEL_OPENAI : ANALYZE_MODEL_ANTHROPIC);
     const model = payload.body.model || defaultModel;
-    const brokerHeaders = {
+    const proxyHeaders = {
       "Content-Type": "application/json",
       "X-Scout-Token": SCOUT_TOKEN,
-      "X-License-Id": license.key,
-      "X-Provider": safeProvider
+      "X-Provider": safeProvider,
+      "X-Analysis-Type": analysisType
     };
+    if (license?.key) {
+      proxyHeaders["X-License-Id"] = license.key;
+    } else {
+      // Free tier — use analyticsUserId as stable device identifier
+      const deviceId = analyticsUserId || crypto.randomUUID();
+      proxyHeaders["X-Device-Id"] = deviceId;
+      if (!analyticsUserId) {
+        await chrome.storage.local.set({ analyticsUserId: deviceId });
+      }
+    }
     if (hasPdfDocs && safeProvider === "anthropic") {
-      brokerHeaders["anthropic-beta"] = "pdfs-2024-09-25";
+      proxyHeaders["anthropic-beta"] = "pdfs-2024-09-25";
     }
     return doFetch(CF_WORKER_URL, {
       method: "POST",
-      headers: brokerHeaders,
+      headers: proxyHeaders,
       body: JSON.stringify({ ...payload.body, model })
     });
   } else {
-    if (!apiKey) {
-      throw new Error("no_api_key");
-    }
+    // Legacy: own API key, route directly to provider
     const model = safeProvider === "openai"
       ? payload.model || payload.body?.model || CONSUMER_DEFAULT_MODEL_OPENAI
       : payload.model || payload.body?.model || CONSUMER_DEFAULT_MODEL_ANTHROPIC;
@@ -149,9 +160,9 @@ let queue = [];
 let isProcessing = false;
 const MAX_RATE_LIMIT_RETRIES = 3;
 
-async function enqueueRequest(payload) {
+async function enqueueRequest(payload, analysisType = "listing") {
   return new Promise((resolve, reject) => {
-    queue.push({ payload, resolve, reject, retries: 0 });
+    queue.push({ payload, analysisType, resolve, reject, retries: 0 });
     if (!isProcessing) {
       processQueue();
     }
@@ -161,17 +172,17 @@ async function enqueueRequest(payload) {
 async function processQueue() {
   isProcessing = true;
   while (queue.length > 0) {
-    const { payload, resolve, reject, retries } = queue.shift();
+    const { payload, analysisType, resolve, reject, retries } = queue.shift();
     try {
-      const result = await callAI(payload);
+      const result = await callAI(payload, analysisType);
       resolve(result);
     } catch (e) {
       if (e.name === "AbortError") {
         reject(e);
       } else if (e.status === 429) {
         if (e.isQuotaError) {
-          chrome.runtime.sendMessage({ type: "SIDEBAR_STATUS", status: "quota_exceeded" });
-          reject(e);
+          chrome.runtime.sendMessage({ type: "SIDEBAR_STATUS", status: "quota_exceeded" }).catch(() => {});
+          reject(new Error("quota_exceeded"));
         } else if (retries < MAX_RATE_LIMIT_RETRIES) {
           queue.unshift({ payload, resolve, reject, retries: retries + 1 });
           chrome.runtime.sendMessage({
@@ -320,7 +331,7 @@ Om fastighetstypen är Gård/Lantbruk — titta EXTRA efter:
       max_tokens: 1500
     };
   }
-  const result = await enqueueRequest({ body });
+  const result = await enqueueRequest({ body }, "listing");
   const rawText = safeProvider === "anthropic" ? result?.content?.[0]?.text : result?.choices?.[0]?.message?.content;
   const parsed = parseAIJson(rawText);
   return { ok: true, data: parsed || rawText, truncated };
@@ -373,7 +384,7 @@ ${itemLines}`;
       max_tokens: 700
     };
   }
-  const result = await enqueueRequest({ body });
+  const result = await enqueueRequest({ body }, "custom_prompt");
   const rawText = safeProvider === "anthropic" ? result?.content?.[0]?.text : result?.choices?.[0]?.message?.content;
   const parsed = parseAIJson(rawText);
   return { ok: true, data: parsed || {} };
@@ -430,7 +441,7 @@ async function handleCustomPrompt(msg) {
       max_tokens: 600
     };
   }
-  const result = await enqueueRequest({ body });
+  const result = await enqueueRequest({ body }, "custom_prompt");
   const rawText = safeProvider === "anthropic" ? result?.content?.[0]?.text : result?.choices?.[0]?.message?.content;
   return { ok: true, answer: rawText || "" };
 }
@@ -460,7 +471,7 @@ async function handleBuyerInfo(msg) {
   } else {
     body = { messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userContent }], max_tokens: 900 };
   }
-  const result = await enqueueRequest({ body });
+  const result = await enqueueRequest({ body }, "custom_prompt");
   const text = safeProvider === "anthropic" ? result?.content?.[0]?.text : result?.choices?.[0]?.message?.content;
   return { ok: true, text: text || "" };
 }
@@ -487,7 +498,7 @@ async function handleTextReview(msg) {
   } else {
     body = { messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userContent }], max_tokens: 800 };
   }
-  const result = await enqueueRequest({ body });
+  const result = await enqueueRequest({ body }, "custom_prompt");
   const text = safeProvider === "anthropic" ? result?.content?.[0]?.text : result?.choices?.[0]?.message?.content;
   return { ok: true, text: text || "" };
 }
@@ -763,7 +774,7 @@ Returnera null för fält du inte hittar. Inga kommentarer, inga extra fält.`;
       max_tokens: 800
     };
   }
-  const result = await enqueueRequest({ body });
+  const result = await enqueueRequest({ body }, "agent_page");
   const rawText = safeProvider === "anthropic" ? result?.content?.[0]?.text : result?.choices?.[0]?.message?.content;
   const parsed = parseAIJson(rawText);
   return {
@@ -1051,7 +1062,7 @@ Regler:
   }
   console.log("[Scout] ANALYZE path:", pdfBase64 ? `pdfBase64 (${pdfBase64.length} chars)` : `pdfText (${(pdfText||"").length} chars)`, "model:", body.model || "(callAI default)", "docType:", docType, "max_tokens:", body.max_tokens);
   try {
-    const result = await enqueueRequest({ body });
+    const result = await enqueueRequest({ body }, "pdf");
     const rawText = safeProvider === "anthropic" ? result?.content?.[0]?.text : result?.choices?.[0]?.message?.content;
     const parsed = parseAIJson(rawText);
     const isEmpty = !parsed || (Array.isArray(parsed) && parsed.length === 0) || (typeof parsed === "object" && !Array.isArray(parsed) && Object.keys(parsed).length === 0);
