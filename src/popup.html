@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Property Scout</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      background: #f5f6fa;
+      color: #1a1a2e;
+      width: 380px;
+      min-height: 200px;
+    }
+    .header {
+      background: linear-gradient(135deg, #1a3c5e 0%, #254e7a 100%);
+      color: #fff;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-left .title { font-size: 14px; font-weight: 700; }
+    .header-left .sub { font-size: 11px; opacity: 0.65; margin-top: 1px; }
+    .settings-btn {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: #fff;
+      font-size: 12px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .settings-btn:hover { background: rgba(255,255,255,0.25); }
+    .content { padding: 10px 10px 14px; }
+    .section-label {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      color: #8a96a3;
+      margin-bottom: 8px;
+      padding: 0 2px;
+    }
+    .empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: #888;
+    }
+    .empty-icon { font-size: 36px; margin-bottom: 10px; }
+    .empty-text { font-size: 13px; font-weight: 600; }
+    .empty-hint { font-size: 12px; color: #aaa; margin-top: 6px; line-height: 1.5; }
+    .listing-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+      border: 1px solid transparent;
+      transition: box-shadow 0.15s, border-color 0.15s;
+    }
+    .listing-card:hover {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.13);
+      border-color: #dde3ec;
+    }
+    .listing-address {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .listing-price {
+      font-size: 12px;
+      color: #1a3c5e;
+      font-weight: 600;
+    }
+    .listing-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 7px;
+    }
+    .risk-badges { display: flex; gap: 5px; flex-wrap: wrap; }
+    .risk-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+    .risk-badge.red { background: #fff5f5; color: #c62828; border: 1px solid #fecaca; }
+    .risk-badge.yellow { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+    .risk-badge.green { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .listing-date { font-size: 11px; color: #9ca3af; white-space: nowrap; }
+    .clear-btn {
+      display: block;
+      width: 100%;
+      margin-top: 6px;
+      background: none;
+      border: none;
+      color: #9ca3af;
+      font-size: 11px;
+      cursor: pointer;
+      text-align: center;
+      padding: 4px;
+    }
+    .clear-btn:hover { color: #6b7280; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <div class="title">AI Property Scout</div>
+      <div class="sub">Portfolio</div>
+    </div>
+    <button class="settings-btn" id="settings-btn">⚙️ Inställningar</button>
+  </div>
+  <div class="content">
+    <div class="section-label" id="count-label" style="display:none"></div>
+    <div id="portfolio-list"></div>
+    <div class="empty" id="empty-state" style="display:none">
+      <div class="empty-icon">🏠</div>
+      <div class="empty-text">Inga sparade objekt ännu</div>
+      <div class="empty-hint">Öppna en annons på Hemnet eller Booli<br>så sparas den automatiskt i portfolio.</div>
+    </div>
+    <button class="clear-btn" id="clear-btn" style="display:none">Rensa portfolio</button>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

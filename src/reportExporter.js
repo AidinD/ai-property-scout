@@ -131,9 +131,22 @@ export function exportReport(analyses, propertyData, whitelabelConfig, context =
 </head>
 <body>
 
-<div class="no-print">
+<div class="no-print" style="display:flex;gap:10px;align-items:center;margin-bottom:24px">
   <button class="print-btn" onclick="window.print()">📄 Spara som PDF (Ctrl+P)</button>
+  <button class="print-btn" style="background:#4b5563" onclick="downloadReport()">💾 Ladda ner HTML</button>
 </div>
+<script>
+function downloadReport() {
+  var title = document.title.replace(/[^\w\s\-åäö]/gi, "").trim();
+  var blob = new Blob([document.documentElement.outerHTML], { type: "text/html;charset=utf-8" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = title + ".html";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
 
 <div class="header">
   <div class="header-logo">

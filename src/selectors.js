@@ -62,16 +62,33 @@ export function scrapeField(selectors, doc = document) {
   return null;
 }
 
-export function scoreScrapeHealth(data) {
+export function scoreScrapeHealth(data, site = "hemnet") {
   const coreFields = ["price", "address", "livingArea"];
   const coreMissing = coreFields.filter((f) => !data[f]);
   if (coreMissing.length > 0) {
     return { status: "critical", missing: coreMissing };
   }
-  const optionalFields = ["avgift", "driftkostnad", "pantbrev", "upplatelseform", "uppvarmning"];
+  let optionalFields;
+  let threshold;
+  if (site === "booli") {
+    // Booli exposes fewer fields — pantbrev/upplatelseform/uppvarmning not in Apollo state.
+    optionalFields = ["avgift", "driftkostnad", "antalRum", "byggnadsår"];
+    threshold = 1;
+  } else if (data.propertyClass === "bostadsratt") {
+    // BRF listings don't have pantbrev or uppvarmning — check BRF-relevant fields.
+    optionalFields = ["avgift", "driftkostnad", "upplatelseform", "brfName"];
+    threshold = 2;
+  } else if (data.propertyClass === "tomt") {
+    optionalFields = ["tomtstorlek", "upplatelseform"];
+    threshold = 1;
+  } else {
+    // Villa, fritidshus, gård
+    optionalFields = ["driftkostnad", "pantbrev", "upplatelseform", "uppvarmning"];
+    threshold = 2;
+  }
   const optionalFound = optionalFields.filter((f) => data[f]).length;
-  if (optionalFound < 2) {
-    return { status: "degraded", missing: [] };
+  if (optionalFound < threshold) {
+    return { status: "degraded", missing: optionalFields.filter((f) => !data[f]) };
   }
   return { status: "healthy", missing: [] };
 }

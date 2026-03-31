@@ -20,14 +20,15 @@ Två användarsegment: **Spekulanter (B2C)** och **Mäklare (B2B)**.
 
 | Fil                               | Ansvar                                                          |
 | --------------------------------- | --------------------------------------------------------------- |
-| `src/content.js`                  | DOM-scraping, sidebar-injektion, kalkylator, UI-logik           |
+| `src/content.js`                  | DOM-scraping, sidebar-injektion, kalkylator, UI-logik, portfolio-lagring |
 | `src/background.js`               | AI-anrop, PDF-pipeline, request queue, licensvalidering         |
 | `src/selectors.js`                | Remote selector config + lokal fallback, hälsopoäng             |
 | `src/utils.js`                    | Formattering (SEK), kostnadsuträkningar, trafikljus-logik       |
-| `src/options.js` / `options.html` | API-nyckel, provider-val, licensinmatning, white label          |
+| `src/options.js` / `options.html` | API-nyckel, provider-val, licensinmatning, white label (`options_page`) |
+| `src/popup.js` / `popup.html`     | Extension-popup: portfolio-vy (alla analyserade objekt)         |
 | `src/analytics.js`                | Event tracking, lokal kö, batch-flush till Supabase             |
 | `src/pdfExtractor.js`             | Injiceras i öppna PDF-flikar för textextraktion                 |
-| `src/reportExporter.js`           | Branded PDF-export (mäklarläge)                                 |
+| `src/reportExporter.js`           | Branded PDF-export + HTML-nedladdning (mäklarläge)              |
 | `selectors.json`                  | Remote selector config (hämtas från GitHub raw, cachas 24h)     |
 | `esbuild.config.js`               | Bundler — injicerar `.env`-variabler som compile-time constants |
 | `.env`                            | Hemliga värden — gitignorerad, aldrig committa                  |
@@ -39,6 +40,41 @@ npm run build
 ```
 
 Chrome laddar från `dist/`, inte `src/`.
+
+---
+
+## Portfolio-lagring och broker-funktioner
+
+### Storage-schema
+
+```
+listing_{listingId}   — fullständigt objekt per annons:
+  { listingId, url, address, price, propertyType, analyzedAt,
+    analyses: [{ label, data, docType, savedAt }], notes }
+
+portfolioIndex         — lättviktig lista för popup-vyn:
+  [{ listingId, url, address, price, analyzedAt, riskSummary: { red, yellow, green } }]
+
+pdfCache_{id}_{label}  — per-PDF-knapp cache (befintlig, behålls)
+agentCache_{id}        — mäklarsidans agentData (befintlig, behålls)
+analysisCache_{id}     — mäklartext-analys (befintlig, behålls)
+```
+
+Alla analyser sparas DUBBELT: i befintliga `pdfCache_*`-nycklar OCH i `listing_*` (unified schema). Unified schema driver portfolio-vyn och notes.
+
+### Extension-popup (popup.html/popup.js)
+
+- Klicka på extension-ikonen → öppnar `popup.html` (portfolio-vy)
+- Visar alla analyserade objekt med adress, riskbadges (🔴🟡🟢), datum
+- Klick på kort → öppnar Hemnet/Booli-sidan i ny flik
+- "Inställningar"-knapp → `chrome.runtime.openOptionsPage()` → `options.html`
+
+### Broker-exklusiva funktioner (visas ej för consumer tier)
+
+- **Noteringar** — textruta i sidebaren, sparas till `listing_{id}.notes`
+- **Kopiera för klientmail** — formaterar alla analyser som plaintext till clipboard
+- **Upplysningslista** — extraherar `compliance_flagga:true` + röda items → nytt fönster
+- **Exportera rapport** — PDF-preview i popup + "Ladda ner HTML"-knapp
 
 ---
 
@@ -176,6 +212,24 @@ Tier mappas via Lemon Squeezy `variant_id` (hårdkodat i `LS_VARIANT_TIERS` i ba
 - Amorteringskrav: 2% om belåning > 70%, annars 1%
 - Ränteavdrag: 30%
 
+### Fritidshus
+
+- Samma som Villa men fastighetsavgift: 376 kr/mån (tak 4 512 kr/år, 2024)
+- `classifyPropertyType` returnerar `"fritidshus"` — separat klass
+- AI-prompt inkluderar extra kontroller: vatten/avlopp, vinterbonat, strandskydd, vägavgift
+
+### Gård/Lantbruk
+
+- Samma lagfart och pantbrev som Villa
+- Fastighetsavgift varierar kraftigt (lantbruksenhet vs småhusenhet) — visas som uppskattning med varningstext
+- `classifyPropertyType` returnerar `"gard"`
+- AI-prompt inkluderar extra kontroller: arealfördelning, arrenden, miljötillstånd, lantbruksenhet-klassning
+
+### Par/Kedjehus/Radhus
+
+- Klassificeras som `"villa"` — identisk kostnadsstruktur
+- URL-slugar som detekteras: `villa`, `radhus`, `parhus`, `kedjehus`
+
 ---
 
 ## AI-analyser
@@ -267,7 +321,7 @@ Schema: `MAJOR.MINOR.PATCH`
 - **MINOR** (+0.1.0) — ny funktion eller sektion i sidebaren
 - **MAJOR** (+1.0.0) — arkitekturförändring, ny tier-logik, breaking change
 
-Nuvarande version: `1.2.5`
+Nuvarande version: `1.8.0`
 
 **Bumpa versionen INNAN `npm run build` körs — inte i efterhand.** Varje `npm run build` ska föregås av en versionsbump om koden ändrades.
 

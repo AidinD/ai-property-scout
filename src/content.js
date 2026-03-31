@@ -1,5 +1,5 @@
 import { loadSelectors, scrapeField, scoreScrapeHealth } from "./selectors.js";
-import { formatSEK, formatSEKMonth, parseSEK, trafficLight, classifyPropertyType, calculateVillaCosts, calculateBrfCosts, calculateTomtCosts } from "./utils.js";
+import { formatSEK, formatSEKMonth, parseSEK, trafficLight, classifyPropertyType, calculateVillaCosts, calculateBrfCosts, calculateTomtCosts, calculateFritidsCosts, calculateGardCosts } from "./utils.js";
 import { trackEvent } from "./analytics.js";
 import { exportReport } from "./reportExporter.js";
 
@@ -14,7 +14,149 @@ let currentPropertyData = null;
 const allAnalysisExports = new Map(); // label → { data, docType, label }
 let analyzeQueue = Promise.resolve(); // serializes concurrent ANALYZE calls
 let activeAnalyzeCount = 0;
+let portfolioWriteQueue = Promise.resolve(); // serializes concurrent portfolio writes
 const blobDocMap = new Map();
+
+// --- Portfolio storage helpers ---
+
+async function saveToPortfolio(propertyData, label, data, docType) {
+  const id = propertyData?.listingId;
+  if (!id) {
+    return;
+  }
+  return new Promise((resolve) => {
+    portfolioWriteQueue = portfolioWriteQueue.catch(() => {}).then(async () => {
+      const key = `listing_${id}`;
+      const stored = await chrome.storage.local.get(key);
+      const existing = stored[key] || {
+        listingId: id,
+        url: location.href,
+        address: propertyData.address || "",
+        price: propertyData.price || "",
+        propertyType: propertyData.propertyType || "",
+        analyzedAt: Date.now(),
+        analyses: [],
+        notes: ""
+      };
+      const entryIdx = existing.analyses.findIndex(a => a.label === label);
+      const entry = { label, data, docType, savedAt: Date.now() };
+      if (entryIdx >= 0) {
+        existing.analyses[entryIdx] = entry;
+      } else {
+        existing.analyses.push(entry);
+      }
+      existing.analyzedAt = Date.now();
+      await chrome.storage.local.set({ [key]: existing });
+      await updatePortfolioIndex(existing);
+      resolve();
+    });
+  });
+}
+
+async function updatePortfolioIndex(listing) {
+  const stored = await chrome.storage.local.get("portfolioIndex");
+  let index = stored.portfolioIndex || [];
+  const riskSummary = computeRiskSummary(listing.analyses);
+  const entry = {
+    listingId: listing.listingId,
+    url: listing.url,
+    address: listing.address,
+    price: listing.price,
+    analyzedAt: listing.analyzedAt,
+    riskSummary
+  };
+  const idx = index.findIndex(e => e.listingId === listing.listingId);
+  if (idx >= 0) {
+    index[idx] = entry;
+  } else {
+    index.unshift(entry);
+    if (index.length > 100) {
+      index = index.slice(0, 100);
+    }
+  }
+  await chrome.storage.local.set({ portfolioIndex: index });
+}
+
+async function savePropertyOnly(propertyData) {
+  const id = propertyData?.listingId;
+  if (!id) {
+    return;
+  }
+  return new Promise((resolve) => {
+    portfolioWriteQueue = portfolioWriteQueue.catch(() => {}).then(async () => {
+      const key = `listing_${id}`;
+      const stored = await chrome.storage.local.get(key);
+      const existing = stored[key] || {
+        listingId: id,
+        url: location.href,
+        address: propertyData.address || "",
+        price: propertyData.price || "",
+        propertyType: propertyData.propertyType || "",
+        analyzedAt: Date.now(),
+        analyses: [],
+        notes: ""
+      };
+      existing.url = location.href;
+      existing.address = propertyData.address || existing.address;
+      existing.price = propertyData.price || existing.price;
+      await chrome.storage.local.set({ [key]: existing });
+      await updatePortfolioIndex(existing);
+      resolve();
+    });
+  });
+}
+
+async function removeFromPortfolio(listingId) {
+  return new Promise((resolve) => {
+    portfolioWriteQueue = portfolioWriteQueue.catch(() => {}).then(async () => {
+      await chrome.storage.local.remove(`listing_${listingId}`);
+      const stored = await chrome.storage.local.get("portfolioIndex");
+      let index = stored.portfolioIndex || [];
+      index = index.filter(e => e.listingId !== listingId);
+      await chrome.storage.local.set({ portfolioIndex: index });
+      resolve();
+    });
+  });
+}
+
+function computeRiskSummary(analyses) {
+  let red = 0, yellow = 0, green = 0;
+  for (const { data } of analyses) {
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        const r = (item.risk || "").toLowerCase();
+        if (r === "röd" || r === "red") {
+          red++;
+        } else if (r === "grön" || r === "green") {
+          green++;
+        } else {
+          yellow++;
+        }
+      }
+    } else if (data && typeof data === "object") {
+      if (data.lan_per_kvm != null) {
+        if (data.lan_per_kvm >= 10000) {
+          red++;
+        } else if (data.lan_per_kvm >= 5000) {
+          yellow++;
+        } else {
+          green++;
+        }
+      }
+      if (data.akta === "oäkta") {
+        red++;
+      } else if (data.akta === "äkta") {
+        green++;
+      }
+      if (data.avgiftshojning_planerad === true) {
+        red++;
+      } else if (data.avgiftshojning_planerad === false) {
+        green++;
+      }
+    }
+  }
+  return { red, yellow, green };
+}
 
 function scrapeHemnetJsonLd() {
   for (const script of document.querySelectorAll("script")) {
@@ -33,10 +175,14 @@ async function scrapeProperty() {
   const selectors = await loadSelectors();
   const s = selectors[site];
   const data = {};
-  data.price = scrapeField(s.price);
-  data.address = scrapeField(s.address);
-  data.livingArea = scrapeField(s.livingArea);
-  data.propertyType = scrapeField(s.propertyType);
+  // For Hemnet, CSS selectors run first as primary source.
+  // For Booli, Apollo extraction runs first (below); CSS selectors are fallback only.
+  if (site === "hemnet") {
+    data.price = scrapeField(s.price);
+    data.address = scrapeField(s.address);
+    data.livingArea = scrapeField(s.livingArea);
+    data.propertyType = scrapeField(s.propertyType);
+  }
   if (site === "hemnet") {
     if (!data.price) {
       for (const el of document.querySelectorAll("h1,h2")) {
@@ -57,10 +203,14 @@ async function scrapeProperty() {
     if (!data.propertyType) {
       const segments = location.pathname.split("/").filter((p) => p.length > 0);
       const typeSlug = segments.find(
-        (p) => p.startsWith("villa") || p.startsWith("radhus") || p.startsWith("lagenhet") || p.startsWith("bostadsratt") || p.startsWith("tomt") || p.startsWith("fritidshus")
+        (p) => p.startsWith("villa") || p.startsWith("radhus") || p.startsWith("parhus") || p.startsWith("kedjehus") || p.startsWith("lagenhet") || p.startsWith("bostadsratt") || p.startsWith("tomt") || p.startsWith("fritidshus") || p.startsWith("gard") || p.startsWith("lantbruk")
       ) || "";
-      if (typeSlug.startsWith("villa") || typeSlug.startsWith("radhus") || typeSlug.startsWith("fritidshus")) {
+      if (typeSlug.startsWith("villa") || typeSlug.startsWith("radhus") || typeSlug.startsWith("parhus") || typeSlug.startsWith("kedjehus")) {
         data.propertyType = "Villa";
+      } else if (typeSlug.startsWith("fritidshus")) {
+        data.propertyType = "Fritidshus";
+      } else if (typeSlug.startsWith("gard") || typeSlug.startsWith("lantbruk")) {
+        data.propertyType = "Gård/Lantbruk";
       } else if (typeSlug.startsWith("lagenhet") || typeSlug.startsWith("bostadsratt")) {
         data.propertyType = "Bostadsrätt";
       } else if (typeSlug.startsWith("tomt")) {
@@ -211,6 +361,210 @@ async function scrapeProperty() {
       }
     }
   }
+  if (site === "booli") {
+    // Booli uses Next.js — all structured data is SSR-embedded in __APOLLO_STATE__
+    try {
+      const nextScript = document.getElementById("__NEXT_DATA__")
+        || [...document.querySelectorAll("script")].find(s => !s.src && s.textContent.includes('"__APOLLO_STATE__"'));
+      if (nextScript) {
+        const nextData = JSON.parse(nextScript.textContent);
+        const apollo = nextData?.props?.pageProps?.__APOLLO_STATE__ || {};
+        const listing = Object.values(apollo).find(v => v.__typename === "Listing");
+        if (listing) {
+          if (!data.address && listing.streetAddress) {
+            data.address = listing.streetAddress;
+          }
+          if (!data.propertyType && listing.objectType) {
+            data.propertyType = listing.objectType;
+          }
+          if (!data.antalRum && listing.rooms?.formatted) {
+            data.antalRum = listing.rooms.formatted;
+          }
+          if (!data.livingArea && listing.livingArea?.formatted) {
+            data.livingArea = listing.livingArea.formatted;
+          }
+          if (!data.byggnadsår && listing.constructionYear) {
+            data.byggnadsår = String(listing.constructionYear);
+          }
+          if (!data.avgift && listing.rent?.formatted) {
+            data.avgift = listing.rent.formatted;
+          }
+          if (!data.driftkostnad && listing.operatingCost?.formatted) {
+            data.driftkostnad = listing.operatingCost.formatted;
+          }
+          if (!data.tomtarea && listing.plotArea?.value) {
+            data.tomtarea = listing.plotArea.value + " m²";
+          }
+          // Price — try several field names Booli might use
+          if (!data.price) {
+            const ap = listing.askingPrice || listing.listPrice || listing.price;
+            if (ap?.formatted) {
+              data.price = ap.formatted;
+            } else if (ap?.raw) {
+              data.price = new Intl.NumberFormat("sv-SE").format(ap.raw) + " kr";
+            }
+          }
+          // Description — look for text field in Apollo cache
+          if (!data.beskrivning) {
+            const descObj = Object.values(apollo).find(v => typeof v.text === "string" && v.text.length > 100);
+            if (descObj?.text) {
+              data.beskrivning = descObj.text;
+            }
+          }
+          // Ownership/tenure
+          if (!data.upplatelseform && listing.tenure) {
+            data.upplatelseform = listing.tenure;
+          }
+          // Heating — Booli may use heatingTypes (array of objects) or heating (string)
+          if (!data.uppvarmning) {
+            if (listing.heatingTypes?.length) {
+              const names = listing.heatingTypes
+                .map(h => h?.name || h?.label || h?.formatted || (typeof h === "string" ? h : null))
+                .filter(Boolean);
+              if (names.length) {
+                data.uppvarmning = names.join(", ");
+              }
+            } else if (listing.heating) {
+              data.uppvarmning = typeof listing.heating === "string"
+                ? listing.heating
+                : listing.heating?.name || listing.heating?.label || null;
+            }
+          }
+          // Supplementary area (biarea)
+          if (!data.biarea) {
+            if (listing.supplementaryArea?.formatted) {
+              data.biarea = listing.supplementaryArea.formatted;
+            } else if (listing.supplementaryArea?.value) {
+              data.biarea = listing.supplementaryArea.value + " m²";
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    // Price DOM fallback — Booli renders price as span.heading-2
+    if (!data.price) {
+      const priceEl = document.querySelector("span.heading-2");
+      if (priceEl?.textContent.includes("kr")) {
+        data.price = priceEl.textContent.trim();
+      }
+    }
+    // Address fallback
+    if (!data.address) {
+      data.address = document.querySelector("h1")?.textContent.trim() || null;
+    }
+    if (!data.address) {
+      const og = document.querySelector('meta[property="og:title"]');
+      if (og?.content) {
+        data.address = og.content.split("|")[0].trim();
+      }
+    }
+    // Description fallback
+    if (!data.beskrivning) {
+      const og = document.querySelector('meta[property="og:description"]') || document.querySelector('meta[name="description"]');
+      if (og?.content?.length > 50) {
+        data.beskrivning = og.content;
+      }
+    }
+    // DOM text fallbacks for fields not reliably in Apollo state.
+    // Use textContent (not innerText) so hidden tab panels are included.
+    const pageText = document.body.textContent || "";
+    if (!data.upplatelseform) {
+      const m = pageText.match(/är en (äganderätt|bostadsrätt)/i);
+      if (m) {
+        data.upplatelseform = m[1].charAt(0).toUpperCase() + m[1].slice(1);
+      }
+    }
+    if (!data.uppvarmning) {
+      // Booli: "Bostaden värms upp med <strong>X</strong>" — may be in hidden tab
+      const heatingP = [...document.querySelectorAll("p")].find(
+        p => p.textContent.includes("värms upp med")
+      );
+      if (heatingP) {
+        const strong = heatingP.querySelector("strong");
+        data.uppvarmning = strong?.textContent.trim()
+          || heatingP.textContent.replace(/.*värms upp med\s*/i, "").trim();
+      }
+    }
+    if (!data.energiklass) {
+      // Booli: "Den här villan har <strong>energiklass E</strong>"
+      const energiP = [...document.querySelectorAll("p")].find(
+        p => p.textContent.includes("energiklass")
+      );
+      if (energiP) {
+        const m = energiP.textContent.match(/energiklass\s+([A-G])/i);
+        if (m) {
+          data.energiklass = m[1].toUpperCase();
+        }
+      }
+    }
+    if (!data.biarea) {
+      const biareaLabels = [...document.querySelectorAll("*")].filter(
+        el => el.children.length === 0 && /^biarea$/i.test(el.textContent.trim())
+      );
+      for (const label of biareaLabels) {
+        const sib = label.nextElementSibling || label.parentElement?.nextElementSibling;
+        if (sib) {
+          const val = sib.textContent.trim();
+          if (/\d+\s*m²/.test(val)) {
+            data.biarea = val;
+            break;
+          }
+        }
+      }
+    }
+    // Energy fields (uppvarmning, energiklass) are React-rendered in the Energidata tab
+    // and not available in SSR. Click the tab, wait for render, then scrape.
+    if (!data.uppvarmning || !data.energiklass) {
+      const energiBtn = [...document.querySelectorAll("button")].find(
+        b => b.textContent.trim() === "Energidata"
+      );
+      if (energiBtn) {
+        energiBtn.click();
+        await new Promise(r => setTimeout(r, 800));
+        if (!data.uppvarmning) {
+          const heatingP = [...document.querySelectorAll("p")].find(
+            p => p.textContent.includes("värms upp med")
+          );
+          if (heatingP) {
+            const strong = heatingP.querySelector("strong");
+            data.uppvarmning = strong?.textContent.trim()
+              || heatingP.textContent.replace(/.*värms upp med\s*/i, "").trim();
+          }
+        }
+        if (!data.energiklass) {
+          const energiP = [...document.querySelectorAll("p")].find(
+            p => p.textContent.includes("energiklass")
+          );
+          if (energiP) {
+            const m = energiP.textContent.match(/energiklass\s+([A-G])/i);
+            if (m) {
+              data.energiklass = m[1].toUpperCase();
+            }
+          }
+        }
+        // Restore the default Bostaden tab
+        const bostadBtn = [...document.querySelectorAll("button")].find(
+          b => b.textContent.trim() === "Bostaden"
+        );
+        if (bostadBtn) {
+          bostadBtn.click();
+        }
+      }
+    }
+    // CSS selectors as last-resort fallback — only fills fields Apollo/DOM didn't get.
+    if (!data.price) {
+      data.price = scrapeField(s.price);
+    }
+    if (!data.address) {
+      data.address = scrapeField(s.address);
+    }
+    if (!data.livingArea) {
+      data.livingArea = scrapeField(s.livingArea);
+    }
+    if (!data.propertyType) {
+      data.propertyType = scrapeField(s.propertyType);
+    }
+  }
   const jsonLd = scrapeHemnetJsonLd();
   if (jsonLd) {
     if (!data.beskrivning && jsonLd.description) {
@@ -228,10 +582,29 @@ async function scrapeProperty() {
   }
   data.priceNum = parseSEK(data.price);
   data.propertyClass = classifyPropertyType(data.propertyType);
+  // Derive upplatelseform from propertyType when scraping didn't find it.
+  // Safe for BRF (always bostadsrätt) and tomt; avoid guessing for villa (could be tomträtt).
+  if (!data.upplatelseform) {
+    if (data.propertyClass === "bostadsratt") {
+      data.upplatelseform = "Bostadsrätt";
+    } else if (data.propertyClass === "tomt") {
+      data.upplatelseform = "Äganderätt";
+    }
+  }
   data.pdfLinks = scrapePdfLinks();
 
   data.listingId = location.pathname.split("/").filter(Boolean).pop() || location.pathname;
-  const agentLinkEl = document.querySelector('a[href*="utm_source=hemnet"][href*="content=listing"]') || document.querySelector('a[href*="utm_source=hemnet"][href*="utm_medium=referral"]');
+  const BROKER_BLOCKLIST = ["hittamaklare.se", "maplibre.org", "openstreetmap.org", "protomaps", "instagram.com", "play.google.com", "apps.apple.com"];
+  const agentLinkEl = document.querySelector('a[href*="utm_source=hemnet"][href*="content=listing"]')
+    || document.querySelector('a[href*="utm_source=hemnet"][href*="utm_medium=referral"]')
+    || [...document.querySelectorAll('a[href*="utm_source=booli"]')].find(a => {
+      try {
+        const host = new URL(a.href).hostname;
+        return !BROKER_BLOCKLIST.some(b => host.includes(b)) && !host.includes("booli.se");
+      } catch (_) {
+        return false;
+      }
+    });
   data.agentUrl = agentLinkEl?.href || null;
   return data;
 }
@@ -322,10 +695,11 @@ function injectSidebar(data) {
 }
 
 function buildSidebarHTML(data) {
-  const health = scoreScrapeHealth(data);
+  const health = scoreScrapeHealth(data, site);
   const degradedBadge = health.status !== "healthy" ? `<div class="scout-badge-warn">⚠️ Scraping degraderad – fyll i manuellt</div>` : "";
   const calcSection = buildCalculatorSection(data);
-  const typeLabel = data.propertyClass === "villa" ? "Villa" : data.propertyClass === "bostadsratt" ? "BRF" : "";
+  const typeLabelMap = { villa: "Villa", bostadsratt: "BRF", tomt: "Tomt", fritidshus: "Fritidshus", gard: "Gård/Lantbruk" };
+  const typeLabel = typeLabelMap[data.propertyClass] || "";
   const quickBadges = [
     typeLabel ? `<span class="scout-quick-badge">${typeLabel}</span>` : "",
     data.antalRum ? `<span class="scout-quick-badge">${data.antalRum}</span>` : "",
@@ -384,6 +758,7 @@ function buildSidebarHTML(data) {
     font-size: 12.5px; padding: 5px 0; border-bottom: 1px solid #f0f2f5;
   }
   .scout-kv:last-child { border-bottom: none; }
+  .scout-facts-rows > .scout-kv:last-child { border-bottom: none; }
   .scout-kv-label { color: #6b7280; }
   .scout-kv-value { font-weight: 600; color: #1a1a2e; text-align: right; max-width: 55%; }
   .scout-divider { height: 1px; background: #f0f2f5; margin: 8px 0; }
@@ -509,10 +884,15 @@ function buildSidebarHTML(data) {
 
     <!-- Fastighet -->
     <div class="scout-card">
-      <div class="scout-section-title">Fastighet</div>
-      <div class="scout-address">${data.address || "Adress okänd"}</div>
-      <div class="scout-price">${data.price || "Pris okänt"}</div>
-      ${quickBadges ? `<div class="scout-quick-badges">${quickBadges}</div>` : ""}
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div class="scout-section-title">Fastighet</div>
+          <div class="scout-address">${data.address || "Adress okänd"}</div>
+          <div class="scout-price">${data.price || "Pris okänt"}</div>
+          ${quickBadges ? `<div class="scout-quick-badges">${quickBadges}</div>` : ""}
+        </div>
+        <button id="scout-portfolio-pin-btn" title="Spara i portfolio" style="flex-shrink:0;background:none;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;padding:4px 7px;font-size:14px;color:#6b7280;line-height:1;margin-top:2px">📌</button>
+      </div>
     </div>
 
     <!-- Fakta -->
@@ -571,6 +951,12 @@ function buildSidebarHTML(data) {
           <button class="scout-btn" id="scout-export-btn">📄 Exportera rapport</button>
         </div>
       </div>
+    </div>
+
+    <!-- Noteringar (broker only) -->
+    <div class="scout-card" id="scout-notes-card" style="display:none">
+      <div class="scout-section-title">Noteringar</div>
+      <textarea id="scout-notes-textarea" placeholder="Skriv egna noteringar om objektet…" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;min-height:70px;color:#1a1a2e;outline:none;background:#fafafa"></textarea>
     </div>
 
     <!-- Upgrade CTA -->
@@ -633,6 +1019,9 @@ function buildFactsSection(data) {
   if (data.livingArea) {
     rows.push(["Boarea", data.livingArea]);
   }
+  if (data.biarea) {
+    rows.push(["Biarea", data.biarea]);
+  }
   if (data.antalRum) {
     rows.push(["Antal rum", data.antalRum]);
   }
@@ -685,7 +1074,7 @@ function buildFactsSection(data) {
   }
   const pantbrevRow = data.pantbrev ? `<div class="scout-kv"><span class="scout-kv-label">Pantbrev (befintliga)</span><span class="scout-kv-value">${data.pantbrev}</span></div>` : "";
   let calcRows = "";
-  if (data.priceNum && data.propertyClass === "villa") {
+  if (data.priceNum && (data.propertyClass === "villa" || data.propertyClass === "fritidshus" || data.propertyClass === "gard")) {
     const lagfart = Math.round(data.priceNum * 0.015 + 825);
     const pantbrevNum = parseSEK(data.pantbrev) || 0;
     const pantbrevBehov = Math.max(0, data.priceNum * 0.85 - pantbrevNum);
@@ -704,7 +1093,7 @@ function buildFactsSection(data) {
                  <span class="scout-kv-label">Pantbrev</span>
                  <span class="scout-kv-value" style="color:#16a34a">Täckt ✓</span>
                </div>`}
-        <div class="scout-kv" style="margin-top:2px">
+        <div class="scout-kv" style="margin-top:2px;border-bottom:none">
           <span class="scout-kv-label" style="font-weight:600;color:#374151">Totalt kontant (15% + avg.)</span>
           <span class="scout-kv-value" style="color:#1a3c5e;font-weight:700">~${new Intl.NumberFormat("sv-SE").format(totalEngång)} kr</span>
         </div>`;
@@ -719,8 +1108,9 @@ function buildFactsSection(data) {
   if (!mainRows && !energiBlock && !pantbrevRow && !calcRows) {
     return "";
   }
+  const hasPdfLinks = (data.pdfLinks || []).length > 0;
   const agentSection = data.agentUrl ? `
-      <div style="margin-top:10px;border-top:1px solid #e5e7eb;padding-top:10px">
+      <div style="margin-top:10px;${hasPdfLinks ? "" : "border-top:1px solid #e5e7eb;padding-top:10px"}">
         <button class="scout-btn secondary" id="scout-agent-fetch-btn" style="width:100%">🔍 Hämta mer info från mäklarsidan</button>
         <div class="scout-status" id="scout-agent-status"></div>
         <div id="scout-agent-data"></div>
@@ -745,7 +1135,7 @@ function buildFactsSection(data) {
   return `
     <div class="scout-card">
       <div class="scout-section-title">Fakta</div>
-      ${mainRows}${energiBlock}${pantbrevRow}${calcRows}${tomträttRow}${slutprisLink}${hemnetDocs}${agentSection}
+      <div class="scout-facts-rows">${mainRows}${energiBlock}${pantbrevRow}</div>${calcRows}${tomträttRow}${slutprisLink}${hemnetDocs}${agentSection}
     </div>`;
 }
 
@@ -894,6 +1284,10 @@ function attachAgentPdfListeners(shadowRoot, propertyData) {
         const hit = stored[autoCacheKey];
         if (hit) {
           renderResults(hit.data, hit.docType, false, autoLabel);
+          btn.innerHTML = "✓ Analyserat";
+          btn.style.background = "#f0fdf4";
+          btn.style.borderColor = "#bbf7d0";
+          btn.style.color = "#166534";
         }
       });
     }
@@ -921,10 +1315,6 @@ function attachAgentPdfListeners(shadowRoot, propertyData) {
           setTimeout(() => { s(""); btn.disabled = false; }, 1500);
           return;
         }
-      }
-      // Grant all-host permission so background can bypass CORS and executeScript on any redirect target
-      if (!isBlob && url) {
-        await chrome.runtime.sendMessage({ type: "REQUEST_AGENT_PERMISSION", origin: "*://*/*" });
       }
       let pdfBase64;
       let pdfText;
@@ -1173,6 +1563,43 @@ async function loadKeyInfoDetails(data) {
 
 function attachSidebarListeners(data) {
   currentPropertyData = data;
+  // Portfolio pin button — available for all tiers
+  const pinBtn = shadowRoot?.getElementById("scout-portfolio-pin-btn");
+  if (pinBtn && data.listingId) {
+    function setPinSaved() {
+      pinBtn.textContent = "📌";
+      pinBtn.style.background = "#dbeafe";
+      pinBtn.style.borderColor = "#3b82f6";
+      pinBtn.title = "Sparad — klicka för att ta bort";
+      pinBtn.dataset.saved = "1";
+    }
+    function setPinUnsaved() {
+      pinBtn.textContent = "📌";
+      pinBtn.style.background = "";
+      pinBtn.style.borderColor = "#d1d5db";
+      pinBtn.title = "Spara i portfolio";
+      pinBtn.dataset.saved = "0";
+    }
+    // Check if already saved
+    chrome.storage.local.get(`listing_${data.listingId}`).then((stored) => {
+      if (stored[`listing_${data.listingId}`]) {
+        setPinSaved();
+      } else {
+        setPinUnsaved();
+      }
+    });
+    pinBtn.addEventListener("click", async () => {
+      pinBtn.disabled = true;
+      if (pinBtn.dataset.saved === "1") {
+        await removeFromPortfolio(data.listingId);
+        setPinUnsaved();
+      } else {
+        await savePropertyOnly(data);
+        setPinSaved();
+      }
+      pinBtn.disabled = false;
+    });
+  }
   getTier().then((tier) => {
     if (tier === "consumer") {
       return;
@@ -1181,7 +1608,37 @@ function attachSidebarListeners(data) {
     if (slot && !slot.textContent) {
       slot.innerHTML = ` <span class="scout-broker-badge">MÄKLARE</span>`;
     }
+    const notesCard = shadowRoot.getElementById("scout-notes-card");
+    if (notesCard) {
+      notesCard.style.display = "";
+    }
   });
+  // Notes: load from portfolio and auto-save on blur
+  const notesTextarea = shadowRoot?.getElementById("scout-notes-textarea");
+  if (notesTextarea && data.listingId) {
+    chrome.storage.local.get(`listing_${data.listingId}`).then((stored) => {
+      const listing = stored[`listing_${data.listingId}`];
+      if (listing?.notes) {
+        notesTextarea.value = listing.notes;
+      }
+    });
+    notesTextarea.addEventListener("blur", async () => {
+      const key = `listing_${data.listingId}`;
+      const stored = await chrome.storage.local.get(key);
+      const existing = stored[key] || {
+        listingId: data.listingId,
+        url: location.href,
+        address: data.address || "",
+        price: data.price || "",
+        propertyType: data.propertyType || "",
+        analyzedAt: Date.now(),
+        analyses: [],
+        notes: ""
+      };
+      existing.notes = notesTextarea.value;
+      await chrome.storage.local.set({ [key]: existing });
+    });
+  }
   const sidebar = shadowRoot.getElementById("scout-sidebar");
   const toggleBtn = shadowRoot.getElementById("scout-toggle-btn");
   const toggleIcon = shadowRoot.getElementById("scout-toggle-icon");
@@ -1248,7 +1705,9 @@ function attachSidebarListeners(data) {
     } else if (resultsEl && response?.data) {
       resultsEl.innerHTML = buildListingAnalysisResults(response.data);
       listingAnalyzeBtn.style.display = "none";
-      allAnalysisExports.set("Mäklaranalys", { data: listingAnalysisToReportItems(response.data), docType: "besiktning", label: "Mäklaranalys" });
+      const listingReportItems = listingAnalysisToReportItems(response.data);
+      allAnalysisExports.set("Mäklaranalys", { data: listingReportItems, docType: "besiktning", label: "Mäklaranalys" });
+      saveToPortfolio(data, "Mäklaranalys", listingReportItems, "besiktning");
       showExportButtonIfBroker();
       const refreshEl = shadowRoot.getElementById("scout-listing-refresh");
       if (refreshEl) {
@@ -1314,16 +1773,6 @@ function attachSidebarListeners(data) {
     if (!agentUrl) {
       return;
     }
-    const origin = new URL(agentUrl).origin + "/*";
-    const permRes = await chrome.runtime.sendMessage({ type: "REQUEST_AGENT_PERMISSION", origin });
-    const granted = permRes?.granted ?? false;
-    if (!granted) {
-      if (agentStatusEl) {
-        agentStatusEl.textContent = "Tillåtelse nekades — kan inte hämta mäklarinfo.";
-        agentStatusEl.classList.add("visible");
-      }
-      return;
-    }
     agentFetchBtn.disabled = true;
     if (agentStatusEl) {
       agentStatusEl.innerHTML = '<span class="scout-spinner"></span> Öppnar mäklarens sida… (5–10 sek)';
@@ -1365,7 +1814,13 @@ function attachSidebarListeners(data) {
       const refreshEl = shadowRoot.getElementById("scout-listing-refresh");
       const analyzeBtnEl = shadowRoot.getElementById("scout-listing-analyze-btn");
       if (resultsEl) {
+        const listingReportItems = listingAnalysisToReportItems(cached.result);
         resultsEl.innerHTML = buildListingAnalysisResults(cached.result);
+        allAnalysisExports.set("Mäklaranalys", { data: listingReportItems, docType: "besiktning", label: "Mäklaranalys" });
+        if (currentPropertyData) {
+          saveToPortfolio(currentPropertyData, "Mäklaranalys", listingReportItems, "besiktning");
+        }
+        showExportButtonIfBroker();
       }
       if (analyzeBtnEl) {
         analyzeBtnEl.style.display = "none";
@@ -1581,6 +2036,33 @@ function runCalculator(data, propertyClass) {
       ["Driftkostnad", formatSEKMonth(c.drift)],
       ["Fastighetsavgift", formatSEKMonth(c.fastighetsavgift)]
     ], c.totalKontant, c.totalMånad, c.totalMånadNetto);
+  } else if (propertyClass === "fritidshus") {
+    const c = calculateFritidsCosts(price, kontant, pantbrev, driftkostnad, räntaDec);
+    html += buildCostTable([
+      ["Kontantinsats", formatSEK(c.kontantinsats)],
+      ["Lagfart (1,5%)", formatSEK(c.lagfart)],
+      ["Pantbrev (tillägg)", formatSEK(c.pantbrevKostnad)]
+    ], [
+      ["Bolån", formatSEK(c.bolån)],
+      [`Ränta (${räntaPct}%)`, formatSEKMonth(c.ränta)],
+      [`Amortering (${amortkravPct}%)`, formatSEKMonth(c.amortering)],
+      ["Driftkostnad", formatSEKMonth(c.drift)],
+      ["Fastighetsavgift (fritidshus)", formatSEKMonth(c.fastighetsavgift)]
+    ], c.totalKontant, c.totalMånad, c.totalMånadNetto);
+  } else if (propertyClass === "gard") {
+    const c = calculateGardCosts(price, kontant, pantbrev, driftkostnad, räntaDec);
+    html += `<div style="font-size:11px;color:#92400e;background:#fffbeb;border-radius:5px;padding:5px 8px;margin-bottom:8px">⚠️ Gård/lantbruk — kalkylen är en uppskattning. Fastighetsavgift, taxeringsvärde och bolånevillkor varierar kraftigt.</div>`;
+    html += buildCostTable([
+      ["Kontantinsats", formatSEK(c.kontantinsats)],
+      ["Lagfart (1,5%)", formatSEK(c.lagfart)],
+      ["Pantbrev (tillägg)", formatSEK(c.pantbrevKostnad)]
+    ], [
+      ["Bolån", formatSEK(c.bolån)],
+      [`Ränta (${räntaPct}%)`, formatSEKMonth(c.ränta)],
+      [`Amortering (${amortkravPct}%)`, formatSEKMonth(c.amortering)],
+      ["Driftkostnad", formatSEKMonth(c.drift)],
+      ["Fastighetsavgift (uppsk.)", formatSEKMonth(c.fastighetsavgift)]
+    ], c.totalKontant, c.totalMånad, c.totalMånadNetto);
   } else if (propertyClass === "tomt") {
     const c = calculateTomtCosts(price, kontant, räntaDec);
     html += buildCostTable([
@@ -1591,7 +2073,7 @@ function runCalculator(data, propertyClass) {
       [`Ränta (${räntaPct}%)`, formatSEKMonth(c.ränta)],
       [`Amortering (${amortkravPct}%)`, formatSEKMonth(c.amortering)]
     ], c.totalKontant, c.totalMånad, c.totalMånadNetto);
-  } else {
+  } else if (propertyClass === "bostadsratt") {
     const c = calculateBrfCosts(price, kontant, avgift, räntaDec);
     html += buildCostTable([
       ["Kontantinsats", formatSEK(c.kontantinsats)]
@@ -1601,6 +2083,8 @@ function runCalculator(data, propertyClass) {
       [`Amortering (${amortkravPct}%)`, formatSEKMonth(c.amortering)],
       ["Månadsavgift", formatSEKMonth(c.avgift)]
     ], c.totalKontant, c.totalMånad, c.totalMånadNetto);
+  } else {
+    html += `<div style="font-size:12px;color:#6b7280;padding:8px 0">Okänd fastighetstyp — välj typ manuellt i kalkylen.</div>`;
   }
   resultEl.innerHTML = html;
   trackEvent("calculator_used", { property_type: propertyClass, site });
@@ -1673,6 +2157,9 @@ function renderResults(data, docType, truncated, label) {
   resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
   const exportKey = label || docType || "analys";
   allAnalysisExports.set(exportKey, { data, docType, label: exportKey });
+  if (currentPropertyData) {
+    saveToPortfolio(currentPropertyData, exportKey, data, docType);
+  }
   showExportButtonIfBroker();
 }
 
@@ -1700,6 +2187,52 @@ async function showExportButtonIfBroker() {
         { keyInfo, agentData: agentCached?.agentData || null }
       );
     });
+    // Kopiera analys
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "scout-btn secondary";
+    copyBtn.textContent = "📋 Kopiera för klientmail";
+    copyBtn.style.marginTop = "6px";
+    copyBtn.addEventListener("click", () => copyAnalysisToClipboard(exportSection));
+    exportSection.appendChild(copyBtn);
+    // Upplysningslista
+    const disclosureBtn = document.createElement("button");
+    disclosureBtn.className = "scout-btn secondary";
+    disclosureBtn.textContent = "⚖️ Upplysningslista";
+    disclosureBtn.style.marginTop = "6px";
+    disclosureBtn.addEventListener("click", openUplysningslista);
+    exportSection.appendChild(disclosureBtn);
+    // Köparinformation
+    const buyerInfoBtn = document.createElement("button");
+    buyerInfoBtn.className = "scout-btn secondary";
+    buyerInfoBtn.textContent = "🏠 Köparinformation";
+    buyerInfoBtn.style.marginTop = "6px";
+    buyerInfoBtn.addEventListener("click", async () => {
+      buyerInfoBtn.disabled = true;
+      buyerInfoBtn.textContent = "Genererar...";
+      try {
+        await openBuyerInfoWindow();
+      } finally {
+        buyerInfoBtn.disabled = false;
+        buyerInfoBtn.textContent = "🏠 Köparinformation";
+      }
+    });
+    exportSection.appendChild(buyerInfoBtn);
+    // Mäklartextgranskning
+    const textReviewBtn = document.createElement("button");
+    textReviewBtn.className = "scout-btn secondary";
+    textReviewBtn.textContent = "🔍 Granska mäklartext";
+    textReviewBtn.style.marginTop = "6px";
+    textReviewBtn.addEventListener("click", async () => {
+      textReviewBtn.disabled = true;
+      textReviewBtn.textContent = "Granskar...";
+      try {
+        await openTextReviewWindow();
+      } finally {
+        textReviewBtn.disabled = false;
+        textReviewBtn.textContent = "🔍 Granska mäklartext";
+      }
+    });
+    exportSection.appendChild(textReviewBtn);
   }
 }
 
@@ -1765,6 +2298,222 @@ function buildBrfResults(d) {
     ));
   }
   return items.join("") || '<div class="scout-item info"><span class="icon">ℹ️</span><div class="scout-item-body"><p>Inga kritiska fynd identifierade.</p></div></div>';
+}
+
+function copyAnalysisToClipboard(exportSection) {
+  const d = currentPropertyData;
+  const lines = [
+    "FASTIGHETSANALYS",
+    d?.address ? `Adress: ${d.address}` : null,
+    d?.price ? `Pris: ${d.price}` : null,
+    d?.livingArea ? `Boarea: ${d.livingArea}` : null,
+    d?.byggnadsår ? `Byggår: ${d.byggnadsår}` : null,
+    ""
+  ].filter(s => s !== null);
+  for (const { label, data: aData } of allAnalysisExports.values()) {
+    lines.push(`--- ${(label || "ANALYS").toUpperCase()} ---`);
+    if (Array.isArray(aData)) {
+      for (const item of aData) {
+        const r = (item.risk || "").toLowerCase();
+        const icon = (r === "röd" || r === "red") ? "🔴" : (r === "grön" || r === "green") ? "🟢" : "🟡";
+        lines.push(`${icon} ${item.kategori}: ${item.sammanfattning || ""}`);
+      }
+    } else if (aData && typeof aData === "object") {
+      if (aData.lan_per_kvm != null) {
+        lines.push(`Lån/kvm: ${Math.round(aData.lan_per_kvm)} kr/kvm`);
+      }
+      if (aData.akta) {
+        lines.push(`Äkta/Oäkta BRF: ${aData.akta}`);
+      }
+      if (aData.avgiftshojning_planerad != null) {
+        lines.push(`Avgiftshöjning: ${aData.avgiftshojning_planerad ? "Ja" : "Nej"}`);
+      }
+      if (aData.notering) {
+        lines.push(`Notering: ${aData.notering}`);
+      }
+    }
+    lines.push("");
+  }
+  navigator.clipboard.writeText(lines.join("\n")).then(() => {
+    const feedback = document.createElement("div");
+    feedback.style.cssText = "font-size:11px;color:#166534;margin-top:4px;text-align:center";
+    feedback.textContent = "✓ Kopierad till urklipp!";
+    exportSection.appendChild(feedback);
+    setTimeout(() => feedback.remove(), 2500);
+  });
+}
+
+function openUplysningslista() {
+  const complianceItems = [];
+  for (const { label, data: aData } of allAnalysisExports.values()) {
+    if (Array.isArray(aData)) {
+      for (const item of aData) {
+        const isRed = (item.risk || "").toLowerCase().includes("röd") || (item.risk || "").toLowerCase() === "red";
+        if (isRed || item.compliance_flagga) {
+          complianceItems.push({
+            source: label,
+            kategori: item.kategori,
+            sammanfattning: item.sammanfattning,
+            isMandatory: !!item.compliance_flagga
+          });
+        }
+      }
+    } else if (aData && typeof aData === "object") {
+      if (aData.akta === "oäkta") {
+        complianceItems.push({ source: label, kategori: "Oäkta BRF", sammanfattning: aData.akta_forklaring || "Föreningen klassificeras som oäkta BRF — sämre skattevillkor för köparen.", isMandatory: true });
+      }
+      if (aData.avgiftshojning_planerad === true) {
+        complianceItems.push({ source: label, kategori: "Avgiftshöjning", sammanfattning: aData.avgiftshojning_notering || "Avgiftshöjning är planerad i föreningen.", isMandatory: true });
+      }
+    }
+  }
+  const address = currentPropertyData?.address || "Fastighet";
+  const date = new Intl.DateTimeFormat("sv-SE", { year: "numeric", month: "long", day: "numeric" }).format(new Date());
+  const itemsHtml = complianceItems.length > 0
+    ? complianceItems.map(item => `
+      <div style="display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:6px;margin-bottom:8px;background:${item.isMandatory ? "#fff0f0" : "#fffde7"};border-left:4px solid ${item.isMandatory ? "#ef5350" : "#ffc107"}">
+        <span style="font-size:18px">${item.isMandatory ? "⚠️" : "📋"}</span>
+        <div>
+          <strong style="display:block;font-weight:700;font-size:14px">${item.kategori}</strong>
+          <span style="font-size:11px;color:#888">${item.source}</span>
+          <p style="margin-top:4px;font-size:13px;color:#333">${item.sammanfattning || ""}</p>
+          ${item.isMandatory ? '<span style="display:inline-block;margin-top:5px;font-size:11px;font-weight:700;color:#c62828;background:#ffebee;padding:2px 8px;border-radius:4px">OBLIGATORISK UPPLYSNING</span>' : ""}
+        </div>
+      </div>`).join("")
+    : '<p style="color:#888;font-style:italic;font-size:13px">Inga compliance-flaggade fynd hittades i de analyserade dokumenten.</p>';
+  const w = window.open("", "_blank");
+  if (!w) {
+    alert("Popup blockerad – tillåt popup-fönster.");
+    return;
+  }
+  w.document.write(`<!DOCTYPE html>
+<html lang="sv"><head><meta charset="UTF-8"><title>Upplysningslista – ${address}</title>
+<style>
+  body { font-family: Georgia, serif; max-width: 700px; margin: 0 auto; padding: 40px 32px; color: #1a1a2e; font-size: 14px; line-height: 1.6; }
+  h1 { font-size: 20px; color: #1a3c5e; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 20px; }
+  .info-box { font-size:13px;color:#444;margin-bottom:20px;padding:10px 14px;background:#eff6ff;border-radius:6px;border-left:4px solid #60a5fa; }
+  .print-btn { background:#1a3c5e;color:#fff;border:none;border-radius:6px;padding:10px 20px;font-size:14px;cursor:pointer;margin-bottom:24px; }
+  .footer { margin-top:32px;padding-top:12px;border-top:1px solid #eee;font-size:11px;color:#999; }
+  @media print { .no-print { display:none; } }
+</style></head><body>
+<div class="no-print"><button class="print-btn" onclick="window.print()">📄 Skriv ut / Spara som PDF</button></div>
+<h1>Upplysningslista</h1>
+<div class="subtitle">${address} · ${date}</div>
+<div class="info-box"><strong>Till mäklaren:</strong> Nedan punkter bör upplysas till köparen per Fastighetsmäklarlagen. Röd bakgrund = identifierat som obligatorisk upplysning. Gul = bör nämnas.</div>
+${itemsHtml}
+<div class="footer"><p>Genererad av AI Property Scout · ${date}</p><p style="margin-top:4px"><em>Beslutsstöd — ersätter inte mäklarens juridiska bedömning.</em></p></div>
+</body></html>`);
+  w.document.close();
+}
+
+async function openBuyerInfoWindow() {
+  const d = currentPropertyData;
+  const analysisSummary = serializeAnalysisForPrompt();
+  if (!analysisSummary && !d?.description) {
+    alert("Ingen analysdata att generera köparinformation från. Kör minst en analys först.");
+    return;
+  }
+  const response = await chrome.runtime.sendMessage({
+    type: "BUYER_INFO",
+    propertyData: {
+      address: d?.address,
+      price: d?.price,
+      livingArea: d?.livingArea,
+      antalRum: d?.antalRum,
+      byggnadsår: d?.byggnadsår,
+      propertyType: d?.propertyType,
+      avgift: d?.avgift,
+      description: (d?.description || "").slice(0, 3000)
+    },
+    analysisSummary
+  });
+  if (response?.error) {
+    alert(`Fel: ${response.error}`);
+    return;
+  }
+  const text = response?.text || "";
+  const address = d?.address || "Fastighet";
+  const date = new Intl.DateTimeFormat("sv-SE", { year: "numeric", month: "long", day: "numeric" }).format(new Date());
+  const w = window.open("", "_blank");
+  if (!w) {
+    alert("Popup blockerad – tillåt popup-fönster.");
+    return;
+  }
+  w.document.write(`<!DOCTYPE html>
+<html lang="sv"><head><meta charset="UTF-8"><title>Köparinformation – ${address}</title>
+<style>
+  body { font-family: Georgia, serif; max-width: 700px; margin: 0 auto; padding: 40px 32px; color: #1a1a2e; font-size: 14px; line-height: 1.7; }
+  h1 { font-size: 20px; color: #1a3c5e; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 24px; }
+  .body-text { white-space: pre-wrap; font-size: 14px; line-height: 1.7; }
+  .print-btn { background:#1a3c5e;color:#fff;border:none;border-radius:6px;padding:10px 20px;font-size:14px;cursor:pointer;margin-bottom:24px; }
+  .footer { margin-top:32px;padding-top:12px;border-top:1px solid #eee;font-size:11px;color:#999; }
+  @media print { .no-print { display:none; } }
+</style></head><body>
+<div class="no-print"><button class="print-btn" onclick="window.print()">📄 Skriv ut / Spara som PDF</button></div>
+<h1>Köparinformation</h1>
+<div class="subtitle">${address} · ${date}</div>
+<div class="body-text">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+<div class="footer"><p>Genererad av AI Property Scout · ${date}</p><p style="margin-top:4px"><em>Beslutsstöd — ersätter inte mäklarens juridiska ansvar.</em></p></div>
+</body></html>`);
+  w.document.close();
+}
+
+async function openTextReviewWindow() {
+  const d = currentPropertyData;
+  const description = d?.description || "";
+  if (!description) {
+    alert("Ingen mäklartext att granska. Sidans annonstext hittades inte.");
+    return;
+  }
+  const analysisSummary = serializeAnalysisForPrompt();
+  if (!analysisSummary) {
+    alert("Ingen analysdata att jämföra mot. Kör minst en analys först.");
+    return;
+  }
+  const response = await chrome.runtime.sendMessage({
+    type: "TEXT_REVIEW",
+    description: description.slice(0, 4000),
+    analysisSummary,
+    propertyData: {
+      address: d?.address,
+      price: d?.price,
+      livingArea: d?.livingArea,
+      byggnadsår: d?.byggnadsår,
+      propertyType: d?.propertyType
+    }
+  });
+  if (response?.error) {
+    alert(`Fel: ${response.error}`);
+    return;
+  }
+  const text = response?.text || "";
+  const address = d?.address || "Fastighet";
+  const date = new Intl.DateTimeFormat("sv-SE", { year: "numeric", month: "long", day: "numeric" }).format(new Date());
+  const w = window.open("", "_blank");
+  if (!w) {
+    alert("Popup blockerad – tillåt popup-fönster.");
+    return;
+  }
+  w.document.write(`<!DOCTYPE html>
+<html lang="sv"><head><meta charset="UTF-8"><title>Mäklartextgranskning – ${address}</title>
+<style>
+  body { font-family: Georgia, serif; max-width: 700px; margin: 0 auto; padding: 40px 32px; color: #1a1a2e; font-size: 14px; line-height: 1.7; }
+  h1 { font-size: 20px; color: #1a3c5e; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 24px; }
+  .body-text { white-space: pre-wrap; font-size: 14px; line-height: 1.7; }
+  .print-btn { background:#1a3c5e;color:#fff;border:none;border-radius:6px;padding:10px 20px;font-size:14px;cursor:pointer;margin-bottom:24px; }
+  .footer { margin-top:32px;padding-top:12px;border-top:1px solid #eee;font-size:11px;color:#999; }
+  @media print { .no-print { display:none; } }
+</style></head><body>
+<div class="no-print"><button class="print-btn" onclick="window.print()">📄 Skriv ut / Spara som PDF</button></div>
+<h1>Mäklartextgranskning</h1>
+<div class="subtitle">${address} · ${date}</div>
+<div class="body-text">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+<div class="footer"><p>Genererad av AI Property Scout · ${date}</p><p style="margin-top:4px"><em>Beslutsstöd — ersätter inte mäklarens professionella omdöme.</em></p></div>
+</body></html>`);
+  w.document.close();
 }
 
 function serializeAnalysisForPrompt() {
@@ -2002,9 +2751,15 @@ function waitForNavRender(ms = 1e3) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function waitForBooliRender() {
+  // Core data is SSR-embedded in __APOLLO_STATE__. Energy tab content is
+  // React-rendered — handled separately via tab click in scrapeProperty().
+  return new Promise((resolve) => setTimeout(resolve, 300));
+}
+
 async function init() {
   console.log("[Scout] init() called, pathname:", location.pathname, "lastScrapedURL:", lastScrapedURL);
-  const isListingPage = site === "hemnet" ? /\/bostad\//.test(location.pathname) : /\/bostad\//.test(location.pathname);
+  const isListingPage = /\/(bostad|annons)\//.test(location.pathname);
   if (!isListingPage) {
     console.log("[Scout] not a listing page, skipping");
     return;
@@ -2016,7 +2771,7 @@ async function init() {
   lastScrapedURL = location.href;
   const data = await scrapeProperty();
   console.log("[Scout] scraped data:", data);
-  const health = scoreScrapeHealth(data);
+  const health = scoreScrapeHealth(data, site);
   await trackEvent("property_viewed", {
     property_type: data.propertyClass,
     site,
@@ -2061,8 +2816,8 @@ function onNavigate() {
     resetSidebar();
   } catch (_) {
   }
-  console.log("[Scout] waiting 1000ms then calling init...");
-  waitForNavRender(1e3).then(() => init());
+  console.log("[Scout] waiting for render then calling init...");
+  (site === "booli" ? waitForBooliRender() : waitForNavRender(1e3)).then(() => init());
 }
 
 setInterval(() => {

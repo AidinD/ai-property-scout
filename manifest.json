@@ -1,17 +1,17 @@
 {
   "manifest_version": 3,
   "name": "AI Property Scout",
-  "version": "1.7.6",
+  "version": "1.9.24",
   "description": "AI-analys av fastighetslistningar på Hemnet och Booli",
   "permissions": ["storage", "scripting", "activeTab", "tabs", "alarms"],
-  "optional_host_permissions": ["*://*/*"],
   "host_permissions": [
     "https://*.hemnet.se/*",
     "https://*.booli.se/*",
     "https://gateway.ai.cloudflare.com/*",
     "https://api.anthropic.com/*",
     "https://api.openai.com/*",
-    "https://ai-property-scout-proxy.aipropertyscout-dev.workers.dev/*"
+    "https://ai-property-scout-proxy.aipropertyscout-dev.workers.dev/*",
+    "*://*/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -30,9 +30,10 @@
     }
   ],
   "action": {
-    "default_popup": "options.html",
+    "default_popup": "popup.html",
     "default_title": "AI Property Scout"
   },
+  "options_page": "options.html",
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   },

@@ -32,10 +32,12 @@ Promise.all([
     esbuild.build({ ...sharedConfig, entryPoints: ['src/options.js'],      outfile: 'dist/options.js' }),
     esbuild.build({ ...sharedConfig, entryPoints: ['src/background.js'],   outfile: 'dist/background.js' }),
     esbuild.build({ ...sharedConfig, entryPoints: ['src/content.js'],      outfile: 'dist/content.js' }),
+    esbuild.build({ ...sharedConfig, entryPoints: ['src/popup.js'],        outfile: 'dist/popup.js' }),
 ]).then(() => {
     // Copy static files
-    fs.copyFileSync('manifest.json',   'dist/manifest.json');
-    fs.copyFileSync('src/options.html','dist/options.html');
-    fs.copyFileSync('src/sidebar.html','dist/sidebar.html');
+    fs.copyFileSync('manifest.json',    'dist/manifest.json');
+    fs.copyFileSync('src/options.html', 'dist/options.html');
+    fs.copyFileSync('src/sidebar.html', 'dist/sidebar.html');
+    fs.copyFileSync('src/popup.html',   'dist/popup.html');
     console.log('Build complete.');
 }).catch(() => process.exit(1));

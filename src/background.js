@@ -281,7 +281,25 @@ Planerade åtgärder:
   Allt som nämns om framtida renoveringar, planerade investeringar eller kommande förändringar.
 
 Mäklarkritik (maklar_kritik):
-  Jämför marknadsföringsspråk mot faktiska uppgifter. Om mäklaren skriver "välskött" men beskrivningen antyder eftersatt underhåll, eller "låg avgift" men fakta visar hög belåning — påpeka detta kortfattat (max 1 mening). Annars null.`;
+  Jämför marknadsföringsspråk mot faktiska uppgifter. Om mäklaren skriver "välskött" men beskrivningen antyder eftersatt underhåll, eller "låg avgift" men fakta visar hög belåning — påpeka detta kortfattat (max 1 mening). Annars null.
+
+FASTIGHETSTYPSPECIFIKA TILLÄGG:
+
+Om fastighetstypen är Fritidshus — titta EXTRA efter:
+  - Vatten och avlopp: kommunalt, enskilt eller inget? Brunt vatten, sämre tryck?
+  - Vinterbonat: kan stugan användas året runt, eller bara sommartid?
+  - Vägavgifter och vinterväghållning: enskild väg, delar kostnad med grannar?
+  - Strandskydd: eventuella inskränkningar i nyttjande nära vatten
+  - Tillgänglighet: hur långt från närmaste samhälle/service?
+  - Elförsörjning: elnätsanslutet eller solceller/batteri?
+
+Om fastighetstypen är Gård/Lantbruk — titta EXTRA efter:
+  - Areal och markanvändning: åkermark, skogsmark, betesmark — hur fördelas det?
+  - Lantbruksenhet vs småhusenhet: påverkar taxering och bolånevillkor kraftigt
+  - Befintliga arrenden: jordbruksarrende, jakträtt, nyttjanderätt
+  - Miljötillstånd och föroreningsrisker: gamla bensinstationer, industri, bekämpningsmedel
+  - Driftskostnader: maskinpark, byggnadsunderhåll, djurhållning?
+  - Eventuell "skogsbruksplan" eller befintlig brukare av marken`;
   const userContent = contextLines ? `Fastighetsfakta:\n${contextLines}\n\nMäklartext:\n${beskrivning}` : beskrivning;
   const LIMIT = 8e3;
   const truncated = userContent.length > LIMIT;
@@ -417,6 +435,63 @@ async function handleCustomPrompt(msg) {
   return { ok: true, answer: rawText || "" };
 }
 
+async function handleBuyerInfo(msg) {
+  const { propertyData, analysisSummary } = msg;
+  const { aiProvider } = await chrome.storage.local.get(["aiProvider"]);
+  const safeProvider = ["anthropic", "openai"].includes(aiProvider) ? aiProvider : "anthropic";
+  const factsLines = [
+    propertyData?.address ? `Adress: ${propertyData.address}` : null,
+    propertyData?.price ? `Pris: ${propertyData.price}` : null,
+    propertyData?.livingArea ? `Boarea: ${propertyData.livingArea}` : null,
+    propertyData?.antalRum ? `Antal rum: ${propertyData.antalRum}` : null,
+    propertyData?.byggnadsår ? `Byggår: ${propertyData.byggnadsår}` : null,
+    propertyData?.propertyType ? `Typ: ${propertyData.propertyType}` : null,
+    propertyData?.avgift ? `BRF-avgift: ${propertyData.avgift}` : null
+  ].filter(Boolean).join("\n");
+  const systemPrompt = `Du är en kunnig och omtänksam fastighetsmäklare. Din uppgift är att skriva ett köparinformationsdokument på svenska — riktat till potentiella köpare, inte mäklare. Dokumentet ska vara lättläst, konkret och hjälpa köparen att förstå vad de köper och vilka risker/fördelar som finns. Lyft fram viktiga fynd från analyserna på ett tydligt men icke-alarmistiskt sätt. Strukturera med rubriker. Max 600 ord.`;
+  const userContent = [
+    factsLines ? `Fastighetsfakta:\n${factsLines}` : null,
+    propertyData?.description ? `Mäklartext:\n${propertyData.description}` : null,
+    analysisSummary ? `AI-analyser:\n${analysisSummary}` : null
+  ].filter(Boolean).join("\n\n");
+  let body;
+  if (safeProvider === "anthropic") {
+    body = { system: systemPrompt, messages: [{ role: "user", content: userContent }], max_tokens: 900 };
+  } else {
+    body = { messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userContent }], max_tokens: 900 };
+  }
+  const result = await enqueueRequest({ body });
+  const text = safeProvider === "anthropic" ? result?.content?.[0]?.text : result?.choices?.[0]?.message?.content;
+  return { ok: true, text: text || "" };
+}
+
+async function handleTextReview(msg) {
+  const { description, analysisSummary, propertyData } = msg;
+  const { aiProvider } = await chrome.storage.local.get(["aiProvider"]);
+  const safeProvider = ["anthropic", "openai"].includes(aiProvider) ? aiProvider : "anthropic";
+  const factsLines = [
+    propertyData?.address ? `Adress: ${propertyData.address}` : null,
+    propertyData?.price ? `Pris: ${propertyData.price}` : null,
+    propertyData?.byggnadsår ? `Byggår: ${propertyData.byggnadsår}` : null,
+    propertyData?.propertyType ? `Typ: ${propertyData.propertyType}` : null
+  ].filter(Boolean).join("\n");
+  const systemPrompt = `Du är en erfaren mäklargranskare. Jämför mäklartexten mot AI-analysresultaten och identifiera: (1) vad som stämmer överens, (2) vad som saknas eller tonas ned i mäklartexten jämfört med analyserna, (3) eventuella överdrifter eller vilseledande formuleringar. Ge konkreta, faktabaserade synpunkter strukturerade med tydliga rubriker. Var professionell — syftet är att hjälpa mäklaren förbättra texten, inte att kritisera. Max 500 ord.`;
+  const userContent = [
+    factsLines ? `Fastighetsfakta:\n${factsLines}` : null,
+    `Mäklartext:\n${description}`,
+    `AI-analyser:\n${analysisSummary}`
+  ].filter(Boolean).join("\n\n");
+  let body;
+  if (safeProvider === "anthropic") {
+    body = { system: systemPrompt, messages: [{ role: "user", content: userContent }], max_tokens: 800 };
+  } else {
+    body = { messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userContent }], max_tokens: 800 };
+  }
+  const result = await enqueueRequest({ body });
+  const text = safeProvider === "anthropic" ? result?.content?.[0]?.text : result?.choices?.[0]?.message?.content;
+  return { ok: true, text: text || "" };
+}
+
 async function handleFetchAgentPage(msg) {
   const { url } = msg;
   const tab = await chrome.tabs.create({ url, active: false });
@@ -434,7 +509,16 @@ async function handleFetchAgentPage(msg) {
     }
     chrome.tabs.onUpdated.addListener(listener);
   });
-  await sleep(3500);
+  await sleep(2000);
+  // Briefly make tab active so visibility-dependent SPAs (Next.js, React lazy loaders)
+  // trigger IntersectionObserver / visibilitychange rendering, then return focus
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => [null]);
+  await chrome.tabs.update(tab.id, { active: true }).catch(() => {});
+  await sleep(1500);
+  if (activeTab?.id) {
+    await chrome.tabs.update(activeTab.id, { active: true }).catch(() => {});
+  }
+  await sleep(1000);
   let extractionResult;
   try {
     let results;
@@ -445,25 +529,51 @@ async function handleFetchAgentPage(msg) {
           func: () => new Promise((resolve) => {
             const LABEL_MAP = {
               "fasad": "fasad",
+              "fasadmaterial": "fasad",
               "tak": "tak",
+              "takkonstruktion": "tak",
+              "takmaterial": "tak",
               "stomme": "stomme",
+              "stommaterial": "stomme",
+              "hustyp": "stomme",
               "grundläggning": "grundlaggning",
+              "grund": "grundlaggning",
+              "grundkonstruktion": "grundlaggning",
               "fönster": "fonster",
+              "fönstertyp": "fonster",
               "ventilation": "ventilation",
+              "ventilationssystem": "ventilation",
               "uppvärmning": "uppvarmning",
+              "uppvärmningssystem": "uppvarmning",
+              "värmekälla": "uppvarmning",
+              "värme": "uppvarmning",
+              "energikälla": "uppvarmning",
               "fastighetsbeteckning": "fastighetsbeteckning",
               "energiklass": "energiklass_raw",
+              "energiprestanda": "energiprestanda_raw",
+              "energiprestanda primärenergital": "energiprestanda_raw",
               "taxeringsvärde": "taxeringsvarde_raw",
+              "taxeringsvärde 2024": "taxeringsvarde_raw",
               "fastighetsskatt": "fastighetsskatt_raw",
+              "kommunal fastighetsavgift": "fastighetsskatt_raw",
               "vatten & avlopp": "vatten_avlopp",
+              "vatten och avlopp": "vatten_avlopp",
+              "va": "vatten_avlopp",
+              "vatten/avlopp": "vatten_avlopp",
               "parkering": "parkering",
+              "parkeringsplats": "parkering",
+              "garage": "parkering",
               "antal rum": "antal_rum_raw",
+              "rum": "antal_rum_raw",
               "bo-/biarea": "biarea_combined_raw",
               "biarea": "biarea_raw",
               "renoveringar": "renoveringar_raw",
-              "energiprestanda primärenergital": "energiprestanda_raw",
+              "renoverat": "renoveringar_raw",
               "byggnadstyp": "byggnadstyp",
-              "servitut och andra rättigheter": "servitut"
+              "byggnadsform": "byggnadstyp",
+              "servitut och andra rättigheter": "servitut",
+              "servitut": "servitut",
+              "rättigheter": "servitut"
             };
             function normalise(s) {
               return s.replace(/[\u00a0\s]+/g, " ").trim().toLowerCase();
@@ -483,8 +593,8 @@ async function handleFetchAgentPage(msg) {
             }
             function extract() {
               const direct = {};
-              document.querySelectorAll("span, div, dt, td, p, li, th").forEach((el) => {
-                if (el.children.length > 2) {
+              document.querySelectorAll("span, div, dt, td, p, li, th, strong, b").forEach((el) => {
+                if (el.children.length > 3) {
                   return;
                 }
                 const label = normalise(el.textContent);
@@ -566,7 +676,7 @@ async function handleFetchAgentPage(msg) {
             setTimeout(tryExpandAccordions, 3500);
             let lastLen = 0;
             let stableCount = 0;
-            const deadline = Date.now() + 18e3;
+            const deadline = Date.now() + 25e3;
             function check() {
               const currentLen = document.body.textContent.length;
               if (currentLen > 3e3 && currentLen === lastLen) {
@@ -715,12 +825,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     handleCustomPrompt(msg).then(sendResponse).catch((e) => sendResponse({ error: e.message }));
     return true;
   }
-  if (msg.type === "REQUEST_AGENT_PERMISSION") {
-    chrome.permissions.request({ origins: [msg.origin] }, (granted) => {
-      sendResponse({ granted: !!granted });
-    });
+  if (msg.type === "BUYER_INFO") {
+    handleBuyerInfo(msg).then(sendResponse).catch((e) => sendResponse({ error: e.message }));
     return true;
   }
+  if (msg.type === "TEXT_REVIEW") {
+    handleTextReview(msg).then(sendResponse).catch((e) => sendResponse({ error: e.message }));
+    return true;
+  }
+
   if (msg.type === "FETCH_AGENT_PAGE") {
     handleFetchAgentPage(msg).then(sendResponse).catch((e) => sendResponse({ error: e.message }));
     return true;

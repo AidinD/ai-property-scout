@@ -38,10 +38,16 @@ export function classifyPropertyType(typeStr) {
     return "unknown";
   }
   const lower = typeStr.toLowerCase();
-  if (lower.includes("villa") || lower.includes("radhus") || lower.includes("fritidshus")) {
+  if (lower.includes("fritidshus") || lower.includes("fritid")) {
+    return "fritidshus";
+  }
+  if (lower.includes("gård") || lower.includes("gard") || lower.includes("lantbruk") || lower.includes("skog")) {
+    return "gard";
+  }
+  if (lower.includes("villa") || lower.includes("radhus") || lower.includes("parhus") || lower.includes("kedjehus")) {
     return "villa";
   }
-  if (lower.includes("bostadsrätt") || lower.includes("bostadsratt") || lower.includes("br")) {
+  if (lower.includes("bostadsrätt") || lower.includes("bostadsratt") || lower.includes("lägenhet") || lower.includes("lagenhet")) {
     return "bostadsratt";
   }
   if (lower.includes("tomt") || lower.includes("mark")) {
@@ -81,6 +87,24 @@ export function calculateVillaCosts(price, kontantinsats, pantbrev, driftkostnad
     totalMånad: ränta + amortering + drift + fastighetsavgift,
     totalMånadNetto: ränta - ränteavdrag + amortering + drift + fastighetsavgift
   };
+}
+
+export function calculateFritidsCosts(price, kontantinsats, pantbrev, driftkostnad, räntaDecimal = 0.04) {
+  const result = calculateVillaCosts(price, kontantinsats, pantbrev, driftkostnad, räntaDecimal);
+  // Fritidshus fastighetsavgift: cap 4 512 kr/år (2024) ≈ 376 kr/mån vs villa 794 kr/mån
+  const fritidsavgift = 376;
+  return {
+    ...result,
+    fastighetsavgift: fritidsavgift,
+    totalMånad: result.ränta + result.amortering + result.drift + fritidsavgift,
+    totalMånadNetto: result.ränta - result.ränteavdrag + result.amortering + result.drift + fritidsavgift
+  };
+}
+
+export function calculateGardCosts(price, kontantinsats, pantbrev, driftkostnad, räntaDecimal = 0.04) {
+  // Gård/lantbruk: same lagfart/pantbrev structure as villa, fastighetsavgift varies widely
+  // Use villa calc as approximation — show a note to user about complexity
+  return calculateVillaCosts(price, kontantinsats, pantbrev, driftkostnad, räntaDecimal);
 }
 
 export function calculateBrfCosts(price, kontantinsats, avgift, räntaDecimal = 0.04) {
