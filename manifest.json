@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Property Scout",
-  "version": "1.9.43",
+  "version": "1.9.47",
   "description": "AI-analys av fastighetslistningar på Hemnet och Booli",
   "permissions": ["storage", "scripting", "activeTab", "tabs", "alarms"],
   "host_permissions": [

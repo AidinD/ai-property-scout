@@ -77,7 +77,13 @@ async function updatePortfolioIndex(listing) {
     propertyClass: listing.propertyClass || "",
     analyzedAt: listing.analyzedAt,
     riskSummary,
-    status: existing?.status || "ny"
+    status: (() => {
+      const current = existing?.status || "ny";
+      if (listing.biddingActive && current !== "klar") {
+        return "anbud";
+      }
+      return current;
+    })()
   };
   const idx = index.findIndex(e => e.listingId === listing.listingId);
   if (idx >= 0) {
@@ -117,6 +123,7 @@ async function savePropertyOnly(propertyData) {
         existing.price = propertyData.price || existing.price;
         existing.propertyClass = propertyData.propertyClass || existing.propertyClass || "";
         existing.propertyType = propertyData.propertyType || existing.propertyType || "";
+        existing.biddingActive = !!propertyData.biddingActive;
         await chrome.storage.local.set({ [key]: existing });
         await updatePortfolioIndex(existing);
         resolve();
@@ -631,6 +638,11 @@ async function scrapeProperty() {
   }
   data.pdfLinks = scrapePdfLinks();
 
+  data.biddingActive = [...document.querySelectorAll("p")].some(
+    p => p.textContent.includes("Budgivning") &&
+         (p.textContent.includes("pågår") || p.textContent.includes("har startat"))
+  );
+
   data.listingId = location.pathname.split("/").filter(Boolean).pop() || location.pathname;
   const BROKER_BLOCKLIST = ["hittamaklare.se", "maplibre.org", "openstreetmap.org", "protomaps", "instagram.com", "play.google.com", "apps.apple.com"];
   const agentLinkEl = document.querySelector('a[href*="utm_source=hemnet"][href*="content=listing"]')
@@ -974,7 +986,8 @@ function buildSidebarHTML(data) {
         <textarea id="scout-pdf-text" placeholder="Klistra in text här..." style="display:none"></textarea>
       </div>
       <div style="margin-bottom:6px">
-        <input type="file" id="scout-file-input" accept=".pdf,.txt" style="font-size:11px;width:100%;color:#6b7280">
+        <input type="file" id="scout-file-input" accept=".pdf,.txt" style="display:none">
+        <button class="scout-btn secondary" id="scout-file-trigger" style="margin-top:0">📎 Välj fil från datorn</button>
       </div>
       <div class="scout-status" id="scout-analyze-status"></div>
       <button class="scout-btn" id="scout-analyze-btn" disabled>Analysera dokument</button>
@@ -1546,14 +1559,14 @@ function buildListingAnalysisSection(data) {
       <div class="scout-status" id="scout-listing-status"></div>
       <div id="scout-listing-results"></div>
       <div id="scout-listing-refresh"></div>
-      <button class="scout-btn secondary" id="scout-listing-analyze-btn">Analysera mäklartext</button>
+      <button class="scout-btn" id="scout-listing-analyze-btn">Analysera mäklartext</button>
       <!-- Upgrade CTA (shown on quota_exceeded) -->
       <div id="scout-upgrade-cta" style="display:none;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px;margin-top:10px;font-size:13px">
         <strong id="scout-upgrade-title">Kvot uppnådd</strong><br>
         <span id="scout-upgrade-msg" style="font-size:12px;color:#6b7280"></span>
         <button class="scout-btn" style="margin-top:8px;width:100%" id="scout-upgrade-btn">Uppgradera →</button>
       </div>
-      <div id="scout-custom-prompt-section" style="margin-top:10px;border-top:1px solid #e5e7eb;padding-top:10px">
+      <div id="scout-custom-prompt-section" style="display:none;margin-top:10px;border-top:1px solid #e5e7eb;padding-top:10px">
         <textarea id="scout-custom-prompt-input" placeholder="Ställ en egen fråga om fastigheten…" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;min-height:60px;color:#1a1a2e"></textarea>
         <button class="scout-btn secondary" id="scout-custom-prompt-btn" style="margin-top:6px;width:100%">Skicka fråga</button>
         <div class="scout-status" id="scout-custom-prompt-status"></div>
@@ -1685,6 +1698,8 @@ function attachSidebarListeners(data) {
   const dropZone = shadowRoot.getElementById("scout-drop-zone");
   const pdfTextArea = shadowRoot.getElementById("scout-pdf-text");
   const fileInput = shadowRoot.getElementById("scout-file-input");
+  const fileTrigger = shadowRoot.getElementById("scout-file-trigger");
+  fileTrigger?.addEventListener("click", () => fileInput?.click());
   const analyzeBtn = shadowRoot.getElementById("scout-analyze-btn");
   const calcBtn = shadowRoot.getElementById("scout-calc-btn");
   const typeOverride = shadowRoot.getElementById("scout-type-override");
@@ -1768,6 +1783,8 @@ function attachSidebarListeners(data) {
     } else if (resultsEl && response?.data) {
       resultsEl.innerHTML = buildListingAnalysisResults(response.data);
       listingAnalyzeBtn.style.display = "none";
+      const customPromptSection = shadowRoot.getElementById("scout-custom-prompt-section");
+      if (customPromptSection) { customPromptSection.style.display = ""; }
       const listingReportItems = listingAnalysisToReportItems(response.data);
       allAnalysisExports.set("Mäklaranalys", { data: listingReportItems, docType: "besiktning", label: "Mäklaranalys" });
       saveToPortfolio(data, "Mäklaranalys", listingReportItems, "besiktning");
@@ -1887,6 +1904,8 @@ function attachSidebarListeners(data) {
       if (analyzeBtnEl) {
         analyzeBtnEl.style.display = "none";
       }
+      const customPromptSectionCached = shadowRoot.getElementById("scout-custom-prompt-section");
+      if (customPromptSectionCached) { customPromptSectionCached.style.display = ""; }
       if (refreshEl) {
         refreshEl.innerHTML = `<div style="text-align:right;margin-bottom:6px">
                     <button id="scout-listing-reload-btn" style="background:none;border:none;color:#9ca3af;font-size:11px;cursor:pointer;padding:0">🔄 Analysera igen</button>

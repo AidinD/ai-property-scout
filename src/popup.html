@@ -114,6 +114,17 @@
       padding: 4px;
     }
     .clear-btn:hover { color: #6b7280; }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.25; }
+    }
+    .status-pill[data-status="anbud"]::before {
+      content: '●';
+      font-size: 10px;
+      margin-right: 5px;
+      vertical-align: middle;
+      animation: pulse-dot 1.4s ease-in-out infinite;
+    }
     .setup-banner {
       background: #fffbeb;
       border: 1px solid #fde68a;

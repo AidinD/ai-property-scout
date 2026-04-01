@@ -34,6 +34,7 @@ function applyPillStyle(pill, status) {
   pill.style.color = status.color;
   pill.style.borderColor = status.border;
   pill.textContent = status.label;
+  pill.dataset.status = status.key;
 }
 
 function buildCard(item) {
@@ -196,10 +197,11 @@ async function loadPortfolio() {
 }
 
 async function checkSetup() {
-  const stored = await chrome.storage.local.get(["apiKey", "license"]);
+  const stored = await chrome.storage.local.get(["apiKey", "license", "analyticsOptIn", "analyticsUserId"]);
   const hasKey = !!stored.apiKey;
   const hasBrokerLicense = stored.license?.tier && stored.license.tier !== "consumer";
-  if (hasKey || hasBrokerLicense) {
+  const hasUsedProduct = !!stored.analyticsOptIn || !!stored.analyticsUserId;
+  if (hasKey || hasBrokerLicense || hasUsedProduct) {
     return;
   }
   const banner = document.getElementById("setup-banner");

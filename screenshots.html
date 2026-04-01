@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<title>AI Property Scout — Screenshots</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #888;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+/* ── Scene wrapper ── */
+.scene {
+  width: 1280px;
+  height: 800px;
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* ── Hemnet-like background page ── */
+.page {
+  position: absolute;
+  inset: 0;
+  background: #f5f5f5;
+  display: flex;
+  flex-direction: column;
+}
+.page-nav {
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  padding: 0 32px;
+  gap: 32px;
+  flex-shrink: 0;
+}
+.page-nav-logo {
+  font-size: 22px;
+  font-weight: 900;
+  color: #e8002d;
+  letter-spacing: -0.5px;
+}
+.page-nav-link {
+  font-size: 13px;
+  color: #555;
+  font-weight: 500;
+}
+.page-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+.page-content {
+  flex: 1;
+  padding: 24px 32px;
+  overflow: hidden;
+}
+.page-photo {
+  width: 100%;
+  height: 340px;
+  background: linear-gradient(160deg, #c8d8e8 0%, #a0b8cc 100%);
+  border-radius: 10px;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.page-photo-icon { font-size: 64px; opacity: 0.3; }
+.page-photo-thumb {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  display: flex;
+  gap: 6px;
+}
+.thumb { width: 60px; height: 42px; background: rgba(255,255,255,0.35); border-radius: 5px; border: 1.5px solid rgba(255,255,255,0.6); }
+.page-address { font-size: 22px; font-weight: 800; color: #1a1a1a; margin-bottom: 4px; }
+.page-price   { font-size: 28px; font-weight: 900; color: #1a1a1a; margin-bottom: 12px; }
+.page-tags { display: flex; gap: 8px; margin-bottom: 20px; }
+.page-tag { background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; padding: 4px 12px; font-size: 13px; color: #444; font-weight: 500; }
+.page-desc {
+  font-size: 13px; color: #555; line-height: 1.7;
+  display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* Blur overlay for bg content */
+.page-blur {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(2px);
+  background: rgba(245,245,245,0.25);
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 380px;
+  background: #f4f6f9;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.18);
+  z-index: 10;
+  overflow: hidden;
+}
+.sidebar-header {
+  background: linear-gradient(135deg, #1a3c5e 0%, #254e7a 100%);
+  color: #fff;
+  padding: 13px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.sidebar-header-title { font-size: 13px; font-weight: 700; letter-spacing: 0.4px; }
+.sidebar-toggle { font-size: 11px; opacity: 0.7; }
+.sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 11px 16px;
+  scrollbar-width: thin;
+}
+
+/* ── Cards ── */
+.card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+.section-title {
+  font-size: 10px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.7px; color: #8a96a3; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 6px;
+}
+.section-title::before {
+  content: ''; display: inline-block; width: 3px; height: 12px;
+  background: #1a3c5e; border-radius: 2px; flex-shrink: 0;
+}
+
+/* ── Property header ── */
+.prop-address { font-size: 15px; font-weight: 700; color: #1a1a2e; line-height: 1.3; }
+.prop-price   { font-size: 18px; font-weight: 800; color: #1a3c5e; margin: 3px 0 8px; }
+.badges { display: flex; gap: 5px; flex-wrap: wrap; }
+.badge { background: #e8f0fe; color: #1a3c5e; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+.pin-btn { flex-shrink:0;background:none;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;padding:4px 7px;font-size:14px;color:#6b7280;line-height:1; }
+
+/* ── KV rows ── */
+.kv { display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f0f2f5;font-size:12.5px; }
+.kv:last-child { border-bottom:none; }
+.kv-label { color:#6b7280; }
+.kv-value { font-weight:600;color:#1a1a2e;text-align:right; }
+.kv-value.muted { color:#9ca3af;font-weight:500;font-size:11.5px; }
+.kv-label.muted { color:#9ca3af;font-size:11.5px; }
+.kv.total .kv-label { font-weight:700;color:#1a1a2e; }
+.kv.total .kv-value { font-weight:800;color:#1a3c5e;font-size:14px; }
+.kv.netto .kv-value { color:#2e7d32;font-weight:700; }
+.divider { height:1px;background:#f0f2f5;margin:6px 0; }
+.energy { display:inline-block;font-size:11px;font-weight:800;padding:1px 7px;border-radius:4px;color:#fff; }
+.energy-D { background:#f9a825;color:#333; }
+.energy-C { background:#558b2f; }
+
+/* ── Agent section ── */
+.agent-section { background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:8px 10px;margin-top:6px; }
+.agent-title { font-size:11px;font-weight:700;color:#0369a1;margin-bottom:6px; }
+
+/* ── AI items ── */
+.item { display:flex;align-items:flex-start;gap:8px;padding:7px 9px;border-radius:7px;margin-bottom:5px;font-size:12.5px;line-height:1.4; }
+.item.red    { background:#fff5f5;border:1px solid #fecaca; }
+.item.yellow { background:#fffbeb;border:1px solid #fde68a; }
+.item.green  { background:#f0fdf4;border:1px solid #bbf7d0; }
+.item.info   { background:#eff6ff;border:1px solid #bfdbfe; }
+.item-icon { font-size:14px;flex-shrink:0;margin-top:1px; }
+.item-title { font-weight:600;font-size:12.5px;color:#1a1a2e;display:block; }
+.item-desc { margin:2px 0 0;color:#555;font-size:11.5px;line-height:1.3; }
+
+/* ── Buttons ── */
+.btn { background:#1a3c5e;color:#fff;border:none;border-radius:7px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;width:100%;margin-top:4px; }
+.btn-secondary { background:#e8f0fe;color:#1a3c5e;margin-top:6px; }
+.btn-gray { background:#c9d1da;cursor:not-allowed;color:#fff; }
+.drop-zone { border:2px dashed #c9d4df;border-radius:8px;padding:16px;text-align:center;font-size:12px;color:#6b7280;background:#f9fafb;margin-bottom:8px; }
+
+/* ── Popup ── */
+.popup-wrap {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #1a3c5e 0%, #2d6a9f 50%, #1a3c5e 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 48px;
+}
+.popup-tagline {
+  color: #fff;
+  max-width: 340px;
+}
+.popup-tagline h2 { font-size: 32px; font-weight: 800; line-height: 1.25; margin-bottom: 12px; }
+.popup-tagline p  { font-size: 16px; opacity: 0.75; line-height: 1.6; }
+.popup {
+  width: 390px;
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 8px 48px rgba(0,0,0,0.35);
+}
+.popup-header {
+  background: linear-gradient(135deg, #1a3c5e 0%, #254e7a 100%);
+  color: #fff; padding: 14px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.popup-title    { font-size: 14px; font-weight: 700; }
+.popup-subtitle { font-size: 11px; opacity: 0.65; margin-top: 1px; }
+.popup-settings { background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;white-space:nowrap; }
+.popup-body { padding: 10px 10px 14px; background: #f5f6fa; }
+.popup-section { font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.7px;color:#8a96a3;margin-bottom:8px;padding:0 2px; }
+.pcard { background:#fff;border-radius:8px;padding:10px 12px;margin-bottom:7px;box-shadow:0 1px 3px rgba(0,0,0,0.07);border:1px solid transparent; }
+.pcard-address { font-size:13px;font-weight:700;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.pcard-price   { font-size:12px;color:#1a3c5e;font-weight:600;margin-top:2px; }
+.pcard-meta    { display:flex;align-items:center;justify-content:space-between;margin-top:7px; }
+.risk-badges   { display:flex;gap:4px; }
+.rb { font-size:11px;font-weight:600;padding:2px 7px;border-radius:10px; }
+.rb-red    { background:#fff5f5;color:#c62828;border:1px solid #fecaca; }
+.rb-yellow { background:#fffbeb;color:#92400e;border:1px solid #fde68a; }
+.rb-green  { background:#f0fdf4;color:#166534;border:1px solid #bbf7d0; }
+.pcard-date { font-size:11px;color:#9ca3af;white-space:nowrap; }
+.status-pill { font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;border:1px solid;cursor:pointer;white-space:nowrap;flex-shrink:0; }
+.pill-ny      { background:#f3f4f6;color:#6b7280;border-color:#e5e7eb; }
+.pill-visning { background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe; }
+.pill-anbud   { background:#fffbeb;color:#92400e;border-color:#fde68a; }
+.pill-klar    { background:#f0fdf4;color:#166534;border-color:#bbf7d0; }
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.status-pill[data-status="anbud"]::before {
+  content: '●';
+  font-size: 10px;
+  margin-right: 5px;
+  vertical-align: middle;
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+.delete-btn { background:none;border:none;cursor:pointer;color:#9ca3af;font-size:16px;padding:2px 4px;line-height:1;border-radius:4px;flex-shrink:0;margin-left:2px; }
+.clear-btn { display:block;width:100%;margin-top:4px;background:none;border:none;color:#9ca3af;font-size:11px;cursor:pointer;text-align:center;padding:4px; }
+
+/* ── Scene label (outside scene, for orientation) ── */
+.scene-label { font-size:11px;color:#ccc;letter-spacing:0.5px;padding:2px 0; }
+</style>
+</head>
+<body>
+
+<!-- =====================================================================
+     SCENE 1 — Fastighetsdata & Fakta
+     Show: sidebar with Fastighet + Fakta + agent data, on a Hemnet-like page
+     ===================================================================== -->
+<div class="scene-label">SCENE 1 — Fastighetsdata &amp; Fakta (1280×800)</div>
+<div class="scene" id="scene1">
+
+  <!-- Background page -->
+  <div class="page">
+    <div class="page-nav">
+      <span class="page-nav-logo">hemnet</span>
+      <span class="page-nav-link">Köpa</span>
+      <span class="page-nav-link">Hyra</span>
+      <span class="page-nav-link">Sälja</span>
+      <span class="page-nav-link">Värdera</span>
+    </div>
+    <div class="page-body">
+      <div class="page-content">
+        <div class="page-photo">
+          <span class="page-photo-icon">🏡</span>
+          <div class="page-photo-thumb">
+            <div class="thumb"></div>
+            <div class="thumb"></div>
+            <div class="thumb"></div>
+          </div>
+        </div>
+        <div class="page-address">Dalbovägen 44, Göteborg</div>
+        <div class="page-price">11 995 000 kr</div>
+        <div class="page-tags">
+          <div class="page-tag">Villa</div>
+          <div class="page-tag">7 rum</div>
+          <div class="page-tag">354 m²</div>
+          <div class="page-tag">Tomt 1 771 m²</div>
+        </div>
+        <div class="page-desc">
+          Välkommen till denna välbyggda villa i ett av Göteborgs mest populära villaområden. Fastigheten erbjuder generösa ytor fördelade på flera plan med möjlighet till separat boende i källarplan. Bergvärme installerat 2018. Nyrenoverat kök och badrum på övre plan.
+        </div>
+      </div>
+      <!-- sidebar takes the right 380px, so page content doesn't need a right panel -->
+    </div>
+    <div class="page-blur"></div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-toggle">◀</span>
+      <span class="sidebar-header-title">AI Property Scout</span>
+    </div>
+    <div class="sidebar-body">
+
+      <!-- Fastighet -->
+      <div class="card">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+          <div style="flex:1">
+            <div class="section-title">Fastighet</div>
+            <div class="prop-address">Dalbovägen 44, Göteborg</div>
+            <div class="prop-price">11 995 000 kr</div>
+            <div class="badges">
+              <span class="badge">Villa</span>
+              <span class="badge">7 rum</span>
+              <span class="badge">354 m²</span>
+            </div>
+          </div>
+          <button class="pin-btn">📌</button>
+        </div>
+      </div>
+
+      <!-- Fakta -->
+      <div class="card">
+        <div class="section-title">Fakta</div>
+        <div class="kv"><span class="kv-label">Boarea</span><span class="kv-value">354 m²</span></div>
+        <div class="kv"><span class="kv-label">Antal rum</span><span class="kv-value">7 rum</span></div>
+        <div class="kv"><span class="kv-label">Byggår</span><span class="kv-value">1966</span></div>
+        <div class="kv"><span class="kv-label">Tomtstorlek</span><span class="kv-value">1 771 m²</span></div>
+        <div class="kv"><span class="kv-label">Upplåtelseform</span><span class="kv-value">Äganderätt</span></div>
+        <div class="kv"><span class="kv-label">Driftkostnad</span><span class="kv-value">86 608 kr/år</span></div>
+        <div class="kv"><span class="kv-label">Energiklass</span><span class="kv-value"><span class="energy energy-D">D</span></span></div>
+        <div class="divider"></div>
+        <div class="kv"><span class="kv-label muted">Lagfart (1,5% + 825 kr)</span><span class="kv-value muted">~180 750 kr</span></div>
+        <div class="kv"><span class="kv-label muted">Pantbrev (2% + 375 kr)</span><span class="kv-value muted">~204 290 kr</span></div>
+        <div class="kv" style="border-bottom:none">
+          <span class="kv-label" style="font-weight:600;color:#374151">Totalt kontant (15% + avg.)</span>
+          <span class="kv-value" style="color:#1a3c5e;font-weight:700">~2 184 290 kr</span>
+        </div>
+        <!-- Från mäklarsidan -->
+        <div class="agent-section">
+          <div class="agent-title">📎 Från mäklarsidan</div>
+          <div class="kv"><span class="kv-label">Antal sovrum</span><span class="kv-value">5</span></div>
+          <div class="kv"><span class="kv-label">Fasad</span><span class="kv-value">Tegel och puts</span></div>
+          <div class="kv"><span class="kv-label">Tak</span><span class="kv-value">Betongpannor</span></div>
+          <div class="kv"><span class="kv-label">Stomme</span><span class="kv-value">Trä</span></div>
+          <div class="kv"><span class="kv-label">Grundläggning</span><span class="kv-value">Betongplatta, krypgrund</span></div>
+          <div class="kv"><span class="kv-label">Uppvärmning</span><span class="kv-value">Bergvärme</span></div>
+          <div class="kv" style="border-bottom:none"><span class="kv-label">Fastighetsskatt</span><span class="kv-value">10 425 kr/år</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- =====================================================================
+     SCENE 2 — AI-analys
+     Show: sidebar with Annonsanalys results (all colored items), on page bg
+     ===================================================================== -->
+<div class="scene-label">SCENE 2 — AI-analys (1280×800)</div>
+<div class="scene" id="scene2">
+
+  <div class="page">
+    <div class="page-nav">
+      <span class="page-nav-logo">hemnet</span>
+      <span class="page-nav-link">Köpa</span>
+      <span class="page-nav-link">Hyra</span>
+      <span class="page-nav-link">Sälja</span>
+      <span class="page-nav-link">Värdera</span>
+    </div>
+    <div class="page-body">
+      <div class="page-content">
+        <div class="page-photo" style="height:200px">
+          <span class="page-photo-icon">🏡</span>
+        </div>
+        <div class="page-address">Dalbovägen 44, Göteborg</div>
+        <div class="page-price">11 995 000 kr</div>
+        <div class="page-tags">
+          <div class="page-tag">Villa</div>
+          <div class="page-tag">7 rum · 354 m²</div>
+        </div>
+        <div class="page-desc">
+          Välkommen till denna välbyggda villa i ett av Göteborgs mest populära villaområden. Bergvärme installerat 2018. Nyrenoverat kök och badrum på övre plan. Generösa ytor med möjlighet till separat boende i källarplan.
+        </div>
+      </div>
+    </div>
+    <div class="page-blur"></div>
+  </div>
+
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-toggle">◀</span>
+      <span class="sidebar-header-title">AI Property Scout</span>
+    </div>
+    <div class="sidebar-body">
+
+      <div class="card">
+        <div class="section-title">Annonsanalys (AI)</div>
+
+        <div class="item info">
+          <span class="item-icon">📋</span>
+          <div>
+            <strong class="item-title">Sammanfattning</strong>
+            <p class="item-desc">Villa från 1966, 354 m². Energiklass D och okänd dräneringsstatus är de främsta riskfaktorerna. Bergvärme är en klar fördel.</p>
+          </div>
+        </div>
+        <div class="item yellow">
+          <span class="item-icon">🔍</span>
+          <div>
+            <strong class="item-title">Mäklarkritikern</strong>
+            <p class="item-desc">Mäklartexten saknar renoveringshistorik och teknisk information — ger köparen begränsad beslutsgrund.</p>
+          </div>
+        </div>
+        <div class="item red">
+          <span class="item-icon">🔴</span>
+          <div>
+            <strong class="item-title">Energiklass D</strong>
+            <p class="item-desc">Indikerar sannolikt behov av isolering och värmesystem — kan kosta 200–400 kkr att åtgärda.</p>
+          </div>
+        </div>
+        <div class="item red">
+          <span class="item-icon">🔴</span>
+          <div>
+            <strong class="item-title">Okänd dräneringsstatus</strong>
+            <p class="item-desc">Villa från 1966 — utan info om dränering är fuktrisken hög. Kräv besiktning.</p>
+          </div>
+        </div>
+        <div class="item yellow">
+          <span class="item-icon">🟡</span>
+          <div>
+            <strong class="item-title">Byggår 1966 — äldre standard</strong>
+            <p class="item-desc">Utan renoveringshistorik är det osäkert vilken standard el, VVS och konstruktion håller.</p>
+          </div>
+        </div>
+        <div class="item green">
+          <span class="item-icon">🟢</span>
+          <div>
+            <strong class="item-title">Bergvärme installerat</strong>
+            <p class="item-desc">Modern uppvärmning ger lägre driftkostnad och bättre energiprofil framöver.</p>
+          </div>
+        </div>
+        <div class="item info">
+          <span class="item-icon">✨</span>
+          <div>
+            <strong class="item-title">Bekvämlighets­faktorer</strong>
+            <p style="margin-top:5px">
+              <span style="background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;display:inline-block;margin:2px 2px 2px 0">Altan</span>
+              <span style="background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;display:inline-block;margin:2px 2px 2px 0">Garage</span>
+              <span style="background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;display:inline-block;margin:2px 2px 2px 0">Förråd</span>
+            </p>
+          </div>
+        </div>
+
+        <div style="text-align:right;margin:6px 0 2px">
+          <button style="background:none;border:none;color:#9ca3af;font-size:11px;cursor:pointer;padding:0">🔄 Analysera igen</button>
+        </div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:10px;margin-top:4px">
+          <textarea placeholder="Ställ en egen fråga om fastigheten…" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:inherit;resize:none;height:52px;color:#6b7280;background:#fafafa"></textarea>
+          <button class="btn btn-secondary" style="margin-top:6px">Skicka fråga</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- =====================================================================
+     SCENE 3 — Portfolio-popup
+     Show: popup centered on a dark branded background
+     ===================================================================== -->
+<div class="scene-label">SCENE 3 — Portfolio-popup (1280×800)</div>
+<div class="scene" id="scene3">
+  <div class="popup-wrap">
+
+    <!-- Tagline -->
+    <div class="popup-tagline">
+      <h2>Håll koll på dina objekt</h2>
+      <p>Alla analyserade fastigheter samlade på ett ställe. Följ budgivning, sätt status och gå direkt till annonsen.</p>
+    </div>
+
+    <!-- Popup -->
+    <div class="popup">
+      <div class="popup-header">
+        <div>
+          <div class="popup-title">AI Property Scout</div>
+          <div class="popup-subtitle">Portfolio</div>
+        </div>
+        <button class="popup-settings">⚙️ Inställningar</button>
+      </div>
+      <div class="popup-body">
+        <div class="popup-section" style="margin-bottom:8px">3 objekt sparade</div>
+        <div class="popup-section">Aktiva objekt</div>
+
+        <div class="pcard">
+          <div style="display:flex;align-items:flex-start;gap:6px">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                <div class="pcard-address" style="flex:1">Dalbovägen 44, Göteborg</div>
+                <span class="status-pill pill-visning">Visning</span>
+              </div>
+              <div class="pcard-price">11 995 000 kr · Villa</div>
+              <div class="pcard-meta">
+                <div class="risk-badges">
+                  <span class="rb rb-red">🔴 2</span>
+                  <span class="rb rb-yellow">🟡 2</span>
+                  <span class="rb rb-green">🟢 1</span>
+                </div>
+                <div class="pcard-date">Idag</div>
+              </div>
+            </div>
+            <button class="delete-btn">🗑</button>
+          </div>
+        </div>
+
+        <div class="pcard">
+          <div style="display:flex;align-items:flex-start;gap:6px">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                <div class="pcard-address" style="flex:1">Björkvägen 3, Stockholm</div>
+                <span class="status-pill pill-anbud" data-status="anbud">Anbud</span>
+              </div>
+              <div class="pcard-price">3 650 000 kr · Lägenhet</div>
+              <div class="pcard-meta">
+                <div class="risk-badges">
+                  <span class="rb rb-red">🔴 1</span>
+                  <span class="rb rb-yellow">🟡 1</span>
+                  <span class="rb rb-green">🟢 3</span>
+                </div>
+                <div class="pcard-date">Igår</div>
+              </div>
+            </div>
+            <button class="delete-btn">🗑</button>
+          </div>
+        </div>
+
+        <div class="pcard">
+          <div style="display:flex;align-items:flex-start;gap:6px">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                <div class="pcard-address" style="flex:1">Stenhagsvägen 89, Uppsala</div>
+                <span class="status-pill pill-ny">Ny</span>
+              </div>
+              <div class="pcard-price">Pris ej angivet · Fritidshus</div>
+              <div class="pcard-meta">
+                <div class="risk-badges">
+                  <span style="font-size:11px;color:#9ca3af;font-style:italic">Ej analyserad</span>
+                </div>
+                <div class="pcard-date">1 apr</div>
+              </div>
+            </div>
+            <button class="delete-btn">🗑</button>
+          </div>
+        </div>
+
+        <button class="clear-btn">Rensa portfolio</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>
