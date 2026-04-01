@@ -165,9 +165,33 @@ export function parseAIJson(text) {
   cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   try {
     return JSON.parse(cleaned);
-  } catch (_) {
-    return null;
+  } catch (_) {}
+  // Truncation recovery: find last top-level closing brace
+  const start = cleaned.indexOf("{");
+  if (start !== -1) {
+    let depth = 0;
+    let lastValidEnd = -1;
+    for (let i = start; i < cleaned.length; i++) {
+      if (cleaned[i] === "{") {
+        depth++;
+      } else if (cleaned[i] === "}") {
+        depth--;
+        if (depth === 0) {
+          lastValidEnd = i;
+          break;
+        }
+      }
+    }
+    if (lastValidEnd === -1) {
+      lastValidEnd = cleaned.lastIndexOf("}");
+    }
+    if (lastValidEnd > start) {
+      try {
+        return JSON.parse(cleaned.slice(start, lastValidEnd + 1));
+      } catch (_) {}
+    }
   }
+  return null;
 }
 
 export function sleep(ms) {

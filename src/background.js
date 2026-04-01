@@ -320,7 +320,7 @@ Om fastighetstypen är Gård/Lantbruk — titta EXTRA efter:
     body = {
       system: systemPrompt,
       messages: [{ role: "user", content: safeContent }],
-      max_tokens: 1500
+      max_tokens: 2500
     };
   } else {
     body = {
@@ -328,7 +328,7 @@ Om fastighetstypen är Gård/Lantbruk — titta EXTRA efter:
         { role: "system", content: systemPrompt },
         { role: "user", content: safeContent }
       ],
-      max_tokens: 1500
+      max_tokens: 2500
     };
   }
   const result = await enqueueRequest({ body }, "listing");
