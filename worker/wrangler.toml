@@ -1,0 +1,14 @@
+name = "ai-property-scout-proxy"
+main = "index.js"
+compatibility_date = "2024-09-23"
+
+# KV namespace for quota tracking
+# Create with: wrangler kv namespace create USAGE_KV
+# Then replace <KV_NAMESPACE_ID> below with the returned id
+[[kv_namespaces]]
+binding = "USAGE_KV"
+id = "<KV_NAMESPACE_ID>"
+
+# Worker Secrets — set via dashboard or wrangler:
+#   wrangler secret put SCOUT_TOKEN
+#   wrangler secret put CENTRAL_API_KEY

@@ -95,6 +95,7 @@
       margin-left: 6px;
     }
     .tier-badge.consumer    { background: #e3f2fd; color: #1565c0; }
+    .tier-badge.spekulant   { background: #e8f5e9; color: #1b5e20; }
     .tier-badge.broker_solo { background: #e8f5e9; color: #2e7d32; }
     .tier-badge.broker_pro  { background: #fff3e0; color: #e65100; }
     .tier-badge.whitelabel  { background: #f3e5f5; color: #6a1b9a; }
@@ -139,19 +140,23 @@
 
   <!-- License -->
   <div class="section">
-    <h2>Licens</h2>
-    <div class="field">
-      <label>Licensnyckel (broker/whitelabel)</label>
-      <input type="text" id="license-key" placeholder="XXXX-XXXX-XXXX-XXXX">
-      <span class="hint">Lämna tomt för consumer-tier (gratis med egen API-nyckel)</span>
+    <h2>Prenumeration</h2>
+    <div class="field" id="license-status-display" style="display:none">
+      <div id="license-active-msg" style="background:#e8f5e9;color:#2e7d32;border-radius:6px;padding:8px 10px;font-size:13px;font-weight:600"></div>
     </div>
-    <button class="btn secondary" id="validate-license-btn">Validera licens</button>
+    <div class="field">
+      <label>Licensnyckel</label>
+      <input type="text" id="license-key" placeholder="XXXX-XXXX-XXXX-XXXX">
+      <span class="hint">Köps på <a href="https://ai-property-scout.pages.dev/#pricing" target="_blank" style="color:#1a3c5e">ai-property-scout.pages.dev</a></span>
+    </div>
+    <button class="btn secondary" id="validate-license-btn">Aktivera licens</button>
     <div class="status-msg" id="license-status"></div>
   </div>
 
-  <!-- API Key (consumer only) -->
+  <!-- API Key (advanced / power users only) -->
   <div class="section" id="api-key-section">
-    <h2>API-nyckel (consumer)</h2>
+    <h2>Avancerat — egen API-nyckel</h2>
+    <p style="font-size:12px;color:#999;margin-bottom:10px;line-height:1.5">Valfritt. Används bara om du vill använda din egna Anthropic- eller OpenAI-nyckel istället för central API.</p>
     <div class="field">
       <label>AI-provider</label>
       <select id="ai-provider">

@@ -1711,7 +1711,7 @@ function attachSidebarListeners(data) {
   let collapsed = false;
 
   // Determine tier and show free counter if applicable
-  const FREE_QUOTA_LIMIT = 10;
+  const FREE_QUOTA_LIMIT = 3;
   const LS_CONSUMER_PRO_URL = "https://aipropertyscout.lemonsqueezy.com/";
   chrome.storage.local.get(["license", "apiKey", "freeAnalysesUsed"]).then(({ license, apiKey, freeAnalysesUsed }) => {
     const tier = license?.tier;

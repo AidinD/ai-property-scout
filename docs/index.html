@@ -179,14 +179,14 @@
     /* ── Pricing ── */
     .pricing-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 20px; margin-top: 48px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px; margin-top: 48px;
       align-items: start;
     }
     .price-card {
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 28px 24px;
+      padding: 24px 20px;
       background: #fff;
     }
     .price-card.featured {
@@ -198,21 +198,13 @@
       letter-spacing: 0.8px; color: var(--muted); margin-bottom: 8px;
     }
     .price-card.featured .price-label { color: var(--blue-dark); }
-    .price-name { font-size: 20px; font-weight: 800; margin-bottom: 4px; }
-    .price-amount { font-size: 32px; font-weight: 900; color: var(--blue-dark); margin: 12px 0 4px; }
-    .price-amount span { font-size: 14px; font-weight: 500; color: var(--muted); }
-    .price-desc { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.5; }
-    .price-features { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-    .price-features li {
-      font-size: 13px; color: #374151;
-      display: flex; align-items: flex-start; gap: 8px;
-    }
-    .price-features li::before { content: '✓'; color: #166534; font-weight: 700; flex-shrink: 0; }
+    .price-name { font-size: 18px; font-weight: 800; margin-bottom: 4px; }
+    .price-desc { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.5; margin-top: 10px; }
     .price-cta {
-      display: block; width: 100%; margin-top: 24px;
+      display: block; width: 100%; margin-top: 20px;
       background: var(--blue-dark); color: #fff;
       border: none; border-radius: 8px;
-      padding: 12px; font-size: 14px; font-weight: 600;
+      padding: 10px; font-size: 13px; font-weight: 600;
       cursor: pointer; text-align: center;
     }
     .price-cta:hover { background: var(--blue-mid); }
@@ -221,6 +213,45 @@
       border: 1px solid var(--border);
     }
     .price-cta.ghost:hover { background: var(--bg); }
+
+    /* ── Comparison table ── */
+    .compare-wrap { overflow-x: auto; margin-top: 48px; }
+    .compare-table {
+      width: 100%; border-collapse: collapse;
+      font-size: 13px;
+    }
+    .compare-table th {
+      padding: 10px 16px; text-align: center;
+      font-size: 11px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.5px; color: var(--muted);
+      border-bottom: 2px solid var(--border);
+    }
+    .compare-table th.col-feature { text-align: left; color: var(--text); }
+    .compare-table th.col-featured { color: var(--blue-dark); }
+    .compare-table td {
+      padding: 11px 16px; text-align: center;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+      color: var(--muted);
+    }
+    .compare-table td.col-feature {
+      text-align: left; color: var(--text); font-weight: 500;
+    }
+    .compare-table tr:last-child td { border-bottom: none; }
+    .compare-table tr:hover td { background: #f9fafb; }
+    .compare-table .section-row td {
+      background: var(--bg); font-size: 11px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      color: var(--muted); padding: 8px 16px;
+    }
+    .compare-table .section-row td.col-feature { color: var(--blue-mid); }
+    .check { color: #166534; font-size: 16px; }
+    .dash  { color: #d1d5db; font-size: 18px; }
+    .val   { color: var(--blue-dark); font-weight: 600; font-size: 12px; }
+
+    @media (max-width: 840px) {
+      .pricing-grid { grid-template-columns: repeat(2, 1fr); }
+    }
 
     /* ── Footer ── */
     footer {
@@ -247,7 +278,7 @@
 <!-- Nav -->
 <nav>
   <div class="nav-logo">AI Property Scout</div>
-  <a href="https://chrome.google.com/webstore" class="nav-cta">Lägg till i Chrome — gratis</a>
+  <a href="https://chrome.google.com/webstore" class="nav-cta">Lägg till i Chrome</a>
 </nav>
 
 <!-- Hero -->
@@ -262,7 +293,7 @@
     </a>
     <a href="#features" class="btn-ghost">Se funktioner →</a>
   </div>
-  <div class="hero-sub">Gratis att testa · Kräver ingen registrering</div>
+  <div class="hero-sub">Kräver prenumeration · Inga manuella inställningar — AI ingår</div>
 </div>
 
 <!-- Sites -->
@@ -280,7 +311,7 @@
 <section id="features">
   <div class="container">
     <div class="section-label">Funktioner</div>
-    <h2>Allt du behöver för ett välgrundat bud</h2>
+    <h2>Allt du behöver för välgrundade fastighetsbeslut</h2>
     <p class="section-intro">Extensionen injicerar en sidebar direkt i annonsen och analyserar allt från mäklartext till årsredovisning.</p>
 
     <div class="features-grid">
@@ -334,7 +365,7 @@
 <section class="steps">
   <div class="container">
     <div class="section-label">Hur det fungerar</div>
-    <h2>Igång på 60 sekunder</h2>
+    <h2>Igång på några minuter</h2>
     <div class="steps-grid">
       <div class="step">
         <div class="step-num">1</div>
@@ -343,18 +374,18 @@
       </div>
       <div class="step">
         <div class="step-num">2</div>
+        <h3>Aktivera prenumeration</h3>
+        <p>Köp en licens och ange licensnyckeln i extensionens inställningar. Ingen egen AI-nyckel behövs.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
         <h3>Öppna en annons</h3>
         <p>Navigera till valfri annons på Hemnet eller Booli. Sidebaren dyker upp automatiskt.</p>
       </div>
       <div class="step">
-        <div class="step-num">3</div>
-        <h3>Analysera</h3>
-        <p>Klicka "Analysera mäklartext" eller dra in ett PDF-dokument. AI:n returnerar sin analys på några sekunder.</p>
-      </div>
-      <div class="step">
         <div class="step-num">4</div>
-        <h3>Jämför i portfolio</h3>
-        <p>Alla objekt samlas automatiskt i portfolyn. Klicka på extensionsikonen för att se alla sparade objekt och gå direkt till respektive annons.</p>
+        <h3>Analysera och jämför</h3>
+        <p>Klicka "Analysera mäklartext" eller dra in ett PDF-dokument. Spara objekt i portfolyn och följ budgivning direkt i extensionen.</p>
       </div>
     </div>
   </div>
@@ -365,65 +396,125 @@
   <div class="container">
     <div class="section-label">Tiers</div>
     <h2>Välj det som passar dig</h2>
-    <p class="section-intro">Privatpersoner använder sin egen AI-nyckel. Mäklare och partners får central nyckel och yrkesanpassade funktioner.</p>
+    <p class="section-intro">Alla tiers använder central AI — ingen egen API-nyckel behövs. Mäklare och partners får dessutom yrkesanpassade funktioner.</p>
 
-    <div class="pricing-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+    <div class="pricing-grid">
 
       <div class="price-card">
-        <div class="price-label">Spekulant</div>
-        <div class="price-name">Consumer</div>
-        <p class="price-desc">För privatpersoner som söker bostad. Koppla din egen AI-nyckel — du betalar bara för det du använder.</p>
-        <ul class="price-features">
-          <li>AI-analys av mäklartext</li>
-          <li>PDF-analys (besiktning, årsredovisning)</li>
-          <li>Kostnadskalkyl med ränteavdrag</li>
-          <li>Portfolio med statushantering</li>
-          <li>Hemnet &amp; Booli</li>
-        </ul>
+        <div class="price-label">Privatperson</div>
+        <div class="price-name">Spekulant</div>
+        <p class="price-desc">För dig som letar bostad. Få AI-analys, kostnadskalkyl och PDF-granskning direkt i sidebaren.</p>
         <a href="https://chrome.google.com/webstore" class="price-cta ghost">Kom igång</a>
       </div>
 
       <div class="price-card">
         <div class="price-label">Enskild mäklare</div>
         <div class="price-name">Broker Solo</div>
-        <p class="price-desc">För enskilda mäklare och fastighetskonsulter. Ingen egen AI-nyckel behövs.</p>
-        <ul class="price-features">
-          <li>Allt i Consumer</li>
-          <li>Central AI-nyckel ingår</li>
-          <li>Noteringar per objekt</li>
-          <li>Exportera rapport (PDF/HTML)</li>
-          <li>Upplysningslista</li>
-          <li>Kopiera för klientmail</li>
-        </ul>
+        <p class="price-desc">För enskilda mäklare och fastighetskonsulter. Spara noteringar och exportera rapporter till klienter.</p>
         <a href="mailto:aipropertyscout@gmail.com" class="price-cta">Kontakta oss →</a>
       </div>
 
       <div class="price-card featured">
         <div class="price-label">Mäklarteam</div>
         <div class="price-name">Broker Pro</div>
-        <p class="price-desc">För byråer och team med högre analysvolym. Samma funktioner som Solo med utrymme för fler användare.</p>
-        <ul class="price-features">
-          <li>Allt i Broker Solo</li>
-          <li>Högre analysvolym per månad</li>
-          <li>Teamfunktioner (kommer)</li>
-        </ul>
+        <p class="price-desc">För byråer och team med högre analysvolym. Fler analyser per månad och plats för fler användare.</p>
         <a href="mailto:aipropertyscout@gmail.com" class="price-cta">Kontakta oss →</a>
       </div>
 
       <div class="price-card">
         <div class="price-label">Partner</div>
         <div class="price-name">White Label</div>
-        <p class="price-desc">För mäklarkedjor och partners som vill sätta eget varumärke på extensionen.</p>
-        <ul class="price-features">
-          <li>Allt i Broker Pro</li>
-          <li>Eget logotyp och färger</li>
-          <li>Anpassad options-sida</li>
-          <li>Prissätts individuellt</li>
-        </ul>
+        <p class="price-desc">För mäklarkedjor som vill sätta eget varumärke — logotyp, färger och anpassad options-sida.</p>
         <a href="mailto:aipropertyscout@gmail.com" class="price-cta">Kontakta oss →</a>
       </div>
 
     </div>
+
+    <!-- Feature comparison table -->
+    <div class="compare-wrap">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th class="col-feature">Funktion</th>
+            <th>Spekulant</th>
+            <th>Broker Solo</th>
+            <th class="col-featured">Broker Pro</th>
+            <th>White Label</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="section-row"><td class="col-feature">Grundfunktioner</td><td></td><td></td><td></td><td></td></tr>
+          <tr>
+            <td class="col-feature">Automatisk nyckelordsscanning</td>
+            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="col-feature">Kostnadskalkyl (lagfart, pantbrev, ränta)</td>
+            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+          </tr>
+          <tr class="section-row"><td class="col-feature">AI-analyser</td><td></td><td></td><td></td><td></td></tr>
+          <tr>
+            <td class="col-feature">AI-analys av mäklartext</td>
+            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="col-feature">PDF-analys (besiktning, årsredovisning)</td>
+            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="col-feature">Mäklarsida-extraktion</td>
+            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="col-feature">Fri fråga om fastigheten</td>
+            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="col-feature">Analyser per månad</td>
+            <td><span class="val">15</span></td><td><span class="val">50</span></td><td><span class="val">150</span></td><td><span class="val">Obegränsat</span></td>
+          </tr>
+          <tr class="section-row"><td class="col-feature">Portfolio</td><td></td><td></td><td></td><td></td></tr>
+          <tr>
+            <td class="col-feature">Spara och följa objekt</td>
+            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="col-feature">Objekt i portfolio</td>
+            <td><span class="val">30</span></td><td><span class="val">200</span></td><td><span class="val">Obegränsat</span></td><td><span class="val">Obegränsat</span></td>
+          </tr>
+          <tr class="section-row"><td class="col-feature">Mäklarfunktioner</td><td></td><td></td><td></td><td></td></tr>
+          <tr>
+            <td class="col-feature">Noteringar per objekt</td>
+            <td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="col-feature">Exportera rapport (PDF / HTML)</td>
+            <td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="col-feature">Kopiera sammanfattning för klientmail</td>
+            <td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="col-feature">Upplysningslista</td>
+            <td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="col-feature">Branded PDF-export</td>
+            <td><span class="dash">–</span></td><td><span class="val">Agentnamn</span></td><td><span class="val">Agentnamn</span></td><td><span class="val">White-label</span></td>
+          </tr>
+          <tr>
+            <td class="col-feature">Teamlicens (3 användare)</td>
+            <td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="col-feature">Eget varumärke (logotyp &amp; färger)</td>
+            <td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="check">✓</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
   </div>
 </section>
 
@@ -437,7 +528,7 @@
     <a href="/privacy">Integritetspolicy</a>
     <a href="https://github.com/AidinD/ai-property-scout">GitHub</a>
   </div>
-  <p style="margin-top:20px;font-size:12px">© 2025 AI Property Scout · Beslutsstöd — ersätter inte professionell rådgivning.</p>
+  <p style="margin-top:20px;font-size:12px">© 2026 AI Property Scout · Beslutsstöd — ersätter inte professionell rådgivning.</p>
 </footer>
 
 </body>

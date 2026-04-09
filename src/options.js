@@ -1,5 +1,6 @@
 const TIER_LABELS = {
-  consumer: "Consumer",
+  consumer: "Gratis",
+  spekulant: "Spekulant",
   broker_solo: "Broker Solo",
   broker_pro: "Broker Pro",
   whitelabel: "White Label"
@@ -18,17 +19,20 @@ async function load() {
   document.getElementById("ai-provider").value = data.aiProvider || "anthropic";
   document.getElementById("api-key").value = data.apiKey || "";
   document.getElementById("analytics-optin").checked = !!data.analyticsOptIn;
-  if (data.license?.key) {
-    document.getElementById("license-key").value = data.license.key;
+  const license = data.license;
+  if (license?.key) {
+    document.getElementById("license-key").value = license.key;
   }
-  updateTierDisplay(data.license?.tier || "consumer");
+  const tier = license?.tier || "consumer";
+  updateTierDisplay(tier);
+  updateLicenseStatusDisplay(license);
+  updateSectionVisibility(tier);
   const wl = data.whitelabel || {};
   document.getElementById("wl-name").value = wl.brokerName || "";
   document.getElementById("wl-firm").value = wl.brokerFirm || "";
   document.getElementById("wl-phone").value = wl.phone || "";
   document.getElementById("wl-color").value = wl.primaryColor || "#003087";
   document.getElementById("wl-logo").value = wl.logoUrl || "";
-  updateSectionVisibility(data.license?.tier || "consumer");
 }
 
 function updateTierDisplay(tier) {
@@ -39,13 +43,29 @@ function updateTierDisplay(tier) {
   }
   if (badge) {
     badge.textContent = TIER_LABELS[tier] || tier;
-    badge.className = `tier-badge ${tier.replace("_", "-")}`;
+    badge.className = `tier-badge ${tier}`;
+  }
+}
+
+function updateLicenseStatusDisplay(license) {
+  const displayEl = document.getElementById("license-status-display");
+  const msgEl = document.getElementById("license-active-msg");
+  if (!displayEl || !msgEl) {
+    return;
+  }
+  if (license?.tier && license.tier !== "consumer") {
+    const tierLabel = TIER_LABELS[license.tier] || license.tier;
+    const expiry = license.expiry ? new Date(license.expiry).toLocaleDateString("sv-SE") : "–";
+    msgEl.textContent = `✓ Aktiv licens: ${tierLabel} — giltig t.o.m. ${expiry}`;
+    displayEl.style.display = "block";
+  } else {
+    displayEl.style.display = "none";
   }
 }
 
 function updateSectionVisibility(tier) {
-  const isBroker = tier !== "consumer";
-  document.getElementById("api-key-section").classList.toggle("hidden", isBroker);
+  const isBroker = tier === "broker_solo" || tier === "broker_pro" || tier === "whitelabel";
+  // API key section is always visible — optional for all users
   document.getElementById("whitelabel-section").classList.toggle("hidden", !isBroker);
 }
 
@@ -57,7 +77,8 @@ document.getElementById("validate-license-btn").addEventListener("click", async 
     await chrome.storage.local.remove("license");
     updateTierDisplay("consumer");
     updateSectionVisibility("consumer");
-    statusEl.textContent = "Licens borttagen – consumer-tier aktiv";
+    updateLicenseStatusDisplay(null);
+    statusEl.textContent = "Licens borttagen – gratis-tier aktiv";
     statusEl.className = "status-msg success";
     return;
   }
@@ -70,7 +91,9 @@ document.getElementById("validate-license-btn").addEventListener("click", async 
   } else {
     updateTierDisplay(response.tier);
     updateSectionVisibility(response.tier);
-    statusEl.textContent = `Tier aktiverad: ${TIER_LABELS[response.tier] || response.tier}`;
+    const storedLicense = await chrome.storage.local.get("license");
+    updateLicenseStatusDisplay(storedLicense.license);
+    statusEl.textContent = `Aktiverad: ${TIER_LABELS[response.tier] || response.tier}`;
     statusEl.className = "status-msg success";
   }
 });

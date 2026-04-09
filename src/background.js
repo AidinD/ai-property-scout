@@ -93,9 +93,9 @@ async function callAI(payload, analysisType = "listing") {
   const safeProvider = VALID_PROVIDERS.includes(aiProvider) ? aiProvider : "anthropic";
   const tier = license?.tier;
   const isBroker = tier && tier !== "consumer" && tier !== "consumer_pro";
-  const isConsumerPro = tier === "consumer_pro";
-  // Route via CF Worker if: broker, consumer_pro, or no own API key (free tier)
-  const useProxy = isBroker || isConsumerPro || !apiKey;
+  // Route via CF Worker if: any valid license, or no API key (free tier)
+  // Own API key only used as fallback when user has no license
+  const useProxy = !!tier || !apiKey;
   // Native PDF API (type: "document" content blocks) requires this beta header
   const hasPdfDocs = payload.body?.messages?.some(m =>
     Array.isArray(m.content) && m.content.some(c => c.type === "document")
@@ -109,7 +109,8 @@ async function callAI(payload, analysisType = "listing") {
       "Content-Type": "application/json",
       "X-Scout-Token": SCOUT_TOKEN,
       "X-Provider": safeProvider,
-      "X-Analysis-Type": analysisType
+      "X-Analysis-Type": analysisType,
+      "X-Tier": tier || "consumer"
     };
     if (license?.key) {
       proxyHeaders["X-License-Id"] = license.key;
