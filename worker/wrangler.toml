@@ -7,7 +7,7 @@ compatibility_date = "2024-09-23"
 # Then replace <KV_NAMESPACE_ID> below with the returned id
 [[kv_namespaces]]
 binding = "USAGE_KV"
-id = "<KV_NAMESPACE_ID>"
+id = "924212b41f764ce9b97e2ee9e9b142d5"
 
 # Worker Secrets — set via dashboard or wrangler:
 #   wrangler secret put SCOUT_TOKEN
