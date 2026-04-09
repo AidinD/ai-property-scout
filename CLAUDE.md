@@ -151,6 +151,8 @@ chrome.storage.local.clear();
 
 ## Tiers
 
+### Teknisk routing
+
 | Tier          | Routing                     | Nyckel                      |
 | ------------- | --------------------------- | --------------------------- |
 | `consumer`    | Direkt → Anthropic / OpenAI | Användaren anger sin egen   |
@@ -159,6 +161,36 @@ chrome.storage.local.clear();
 | `whitelabel`  | Via CF Worker               | Central                     |
 
 Tier mappas via Lemon Squeezy `variant_id` (hårdkodat i `LS_VARIANT_TIERS` i background.js). Licens cachas 24h i `chrome.storage.local`.
+
+### Produktdifferentiering
+
+**Consumer** — riktar sig till privatpersoner som letar bostad.
+- Måste ange egen API-nyckel (Anthropic eller OpenAI) i inställningar
+- Betalar ingenting till oss — kostnaden är deras egna API-användning
+- Ingen licens krävs, extensionen fungerar direkt
+- Saknar alla broker-exklusiva funktioner nedan
+
+**broker_solo** — riktar sig till enskild mäklare eller fastighetskonsult.
+- Ingen egen API-nyckel behövs — central nyckel via CF Worker
+- Tillgång till: Noteringar per objekt, Exportera rapport (PDF/HTML), Kopiera för klientmail, Upplysningslista
+- En licens = en användare
+
+**broker_pro** — riktar sig till mäklarteam eller byrå.
+- Samma som broker_solo funktionsmässigt i nuläget
+- Avsett för högre volym / fler analyser per månad
+- Kan i framtiden få teamfunktioner (delad portfolio, gemensam licens)
+
+**whitelabel** — riktar sig till mäklarkedjor eller partners som vill sätta eget varumärke.
+- Samma funktioner som broker_pro
+- Logotyp och färger kan anpassas via options.html (white label-fält)
+- Prissätts separat, förhandlas direkt
+
+### Vad som är broker-exklusivt i koden
+Funktioner som skyddas av `isBroker`-checken i content.js:
+- Noteringar (`scout-notes-card`)
+- Exportera rapport (`scout-export-section`)
+- Kopiera för klientmail
+- Upplysningslista
 
 ---
 
