@@ -504,6 +504,74 @@ async function handleTextReview(msg) {
   return { ok: true, text: text || "" };
 }
 
+async function handleBrfBuyerSummary(msg) {
+  const { brfData, address } = msg;
+  const { license, aiProvider } = await chrome.storage.local.get(["license", "aiProvider"]);
+  const safeProvider = ["anthropic", "openai"].includes(aiProvider) ? aiProvider : "anthropic";
+  const tier = license?.tier || "consumer";
+  const isBroker = tier && tier !== "consumer" && tier !== "consumer_pro";
+  const fmt = (v) => new Intl.NumberFormat("sv-SE").format(Math.round(v));
+  const lines = [
+    brfData.lan_per_kvm != null ? `Lån per kvm: ${fmt(brfData.lan_per_kvm)} kr/kvm${brfData.skuld_kr ? ` (total föreningsskuld: ${fmt(brfData.skuld_kr)} kr)` : ""}` : null,
+    brfData.akta ? `Typ: ${brfData.akta} BRF${brfData.akta_forklaring ? " — " + brfData.akta_forklaring : ""}` : null,
+    brfData.avgiftshojning_planerad != null ? `Avgiftshöjning: ${brfData.avgiftshojning_planerad ? "Ja, planerad" : "Nej, ej planerad"}${brfData.avgiftshojning_notering ? " — " + brfData.avgiftshojning_notering : ""}` : null,
+    brfData.renoveringar?.length > 0 ? `Genomförda renoveringar: ${brfData.renoveringar.map((r) => `${r.typ} (${r.år})`).join(", ")}` : null,
+    brfData.parkering ? `Parkering: ${brfData.parkering}` : null,
+    brfData.imd ? "Individuell mätning (IMD): ja — el debiteras individuellt" : null,
+    brfData.gemensamt_elavtal ? "Gemensamt elavtal: ja" : null,
+    brfData.notering ? `Övrigt: ${brfData.notering}` : null,
+  ].filter(Boolean).join("\n");
+  const systemPrompt = `Du är en erfaren fastighetsmäklare som hjälper en spekulant förstå bostadsrättsföreningens ekonomi. Skriv en kortfattad sammanfattning på svenska som mäklaren kan kopiera och skicka till en intresserad köpare. Förklara nyckeltalen i kontext — vad innebär siffrorna i praktiken, är de bra eller oroande? Referensramar: lån under 3 000 kr/kvm är lågt/bra, 5 000–8 000 kr/kvm är normalt, över 10 000 kr/kvm är högt/riskfyllt. Skriv löpande text utan rubriker. Max 180 ord. Avsluta med en kort mening om vad köparen bör fråga mäklaren eller undersöka vidare.`;
+  const userContent = `${address ? `Fastighet: ${address}\n\n` : ""}BRF-nyckeltal från årsredovisningen:\n${lines}`;
+  const model = isBroker
+    ? (safeProvider === "openai" ? BROKER_MODEL_OPENAI : BROKER_MODEL_ANTHROPIC)
+    : (safeProvider === "openai" ? CONSUMER_DEFAULT_MODEL_OPENAI : CONSUMER_DEFAULT_MODEL_ANTHROPIC);
+  let body;
+  if (safeProvider === "anthropic") {
+    body = { model, system: systemPrompt, messages: [{ role: "user", content: userContent }], max_tokens: 400 };
+  } else {
+    body = { model, messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userContent }], max_tokens: 400 };
+  }
+  const result = await enqueueRequest({ body }, "custom_prompt");
+  const text = safeProvider === "anthropic" ? result?.content?.[0]?.text : result?.choices?.[0]?.message?.content;
+  return { ok: true, text: text?.trim() || "" };
+}
+
+async function handleBesiktningBuyerQA(msg) {
+  const { items, address } = msg;
+  const { license, aiProvider } = await chrome.storage.local.get(["license", "aiProvider"]);
+  const safeProvider = ["anthropic", "openai"].includes(aiProvider) ? aiProvider : "anthropic";
+  const tier = license?.tier || "consumer";
+  const isBroker = tier && tier !== "consumer" && tier !== "consumer_pro";
+  const relevantItems = (items || []).filter((i) => {
+    const r = (i.risk || "").toLowerCase();
+    return r === "röd" || r === "red" || r === "gul" || r === "yellow";
+  }).slice(0, 6);
+  if (relevantItems.length === 0) {
+    return { ok: true, qa: [] };
+  }
+  const itemLines = relevantItems.map((i) => `- ${i.kategori}: ${i.sammanfattning}`).join("\n");
+  const systemPrompt = `Du är en erfaren fastighetsmäklare. Baserat på fynd i ett besiktningsprotokoll, generera de frågor som köpare sannolikt ställer och hur mäklaren bör svara — faktabaserat och utan att minimera risken. Svara ENBART med JSON-array, inga markdown-fences:
+[
+  { "fraga": "Vad innebär fyndet om [kategori]?", "svar": "..." }
+]
+Max 5 Q&A-par. Håll varje svar under 60 ord. Fokusera på de mest kritiska fynden.`;
+  const userContent = `${address ? `Fastighet: ${address}\n\n` : ""}Fynd i besiktningsprotokollet:\n${itemLines}`;
+  const model = isBroker
+    ? (safeProvider === "openai" ? BROKER_MODEL_OPENAI : BROKER_MODEL_ANTHROPIC)
+    : (safeProvider === "openai" ? CONSUMER_DEFAULT_MODEL_OPENAI : CONSUMER_DEFAULT_MODEL_ANTHROPIC);
+  let body;
+  if (safeProvider === "anthropic") {
+    body = { model, system: systemPrompt, messages: [{ role: "user", content: userContent }], max_tokens: 600 };
+  } else {
+    body = { model, messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userContent }], max_tokens: 600 };
+  }
+  const result = await enqueueRequest({ body }, "custom_prompt");
+  const rawText = safeProvider === "anthropic" ? result?.content?.[0]?.text : result?.choices?.[0]?.message?.content;
+  const parsed = parseAIJson(rawText);
+  return { ok: true, qa: Array.isArray(parsed) ? parsed : [] };
+}
+
 async function handleFetchAgentPage(msg) {
   const { url } = msg;
   const tab = await chrome.tabs.create({ url, active: false });
@@ -843,6 +911,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg.type === "TEXT_REVIEW") {
     handleTextReview(msg).then(sendResponse).catch((e) => sendResponse({ error: e.message }));
+    return true;
+  }
+  if (msg.type === "BRF_BUYER_SUMMARY") {
+    handleBrfBuyerSummary(msg).then(sendResponse).catch((e) => sendResponse({ error: e.message }));
+    return true;
+  }
+  if (msg.type === "BESIKTNING_BUYER_QA") {
+    handleBesiktningBuyerQA(msg).then(sendResponse).catch((e) => sendResponse({ error: e.message }));
     return true;
   }
 

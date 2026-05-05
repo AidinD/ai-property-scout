@@ -1004,6 +1004,12 @@ function buildSidebarHTML(data) {
       </div>
     </div>
 
+    <!-- FML Checklista (broker only) -->
+    <div class="scout-card" id="scout-compliance-card" style="display:none">
+      <div class="scout-section-title">FML-checklista</div>
+      <div id="scout-compliance-list"></div>
+    </div>
+
     <!-- Noteringar (broker only) -->
     <div class="scout-card" id="scout-notes-card" style="display:none">
       <div class="scout-section-title">Noteringar</div>
@@ -1661,6 +1667,11 @@ function attachSidebarListeners(data) {
     if (slot && !slot.textContent) {
       slot.innerHTML = ` <span class="scout-broker-badge">MÄKLARE</span>`;
     }
+    const complianceCard = shadowRoot.getElementById("scout-compliance-card");
+    if (complianceCard) {
+      complianceCard.style.display = "";
+      initComplianceCard(data);
+    }
     const notesCard = shadowRoot.getElementById("scout-notes-card");
     if (notesCard) {
       notesCard.style.display = "";
@@ -2241,6 +2252,12 @@ function renderResults(data, docType, truncated, label) {
   if (currentPropertyData) {
     saveToPortfolio(currentPropertyData, exportKey, data, docType);
   }
+  if (docType === "besiktning" && Array.isArray(data) && data.length > 0) {
+    addBesiktningQAButtonIfBroker(block, data);
+  }
+  if (docType !== "besiktning" && docType !== "stadgar" && data && typeof data === "object") {
+    addBrfSummaryButtonIfBroker(block, data);
+  }
   showExportButtonIfBroker();
 }
 
@@ -2315,6 +2332,223 @@ async function showExportButtonIfBroker() {
     });
     exportSection.appendChild(textReviewBtn);
   }
+}
+
+function getComplianceItems(propertyClass) {
+  const base = [
+    { key: "undersokningsplikt", label: "Undersökningspliktsinformation — fastighetsspecifik, ej generisk boilerplate" },
+    { key: "boendekostnad", label: "Boendekostnadskalkyl — upprättad och sparad skriftligt" },
+    { key: "budgivning", label: "Budgivningslista — redo att dokumentera bud med namn, belopp och tid" },
+  ];
+  if (propertyClass === "bostadsratt") {
+    return [
+      { key: "energi", label: "Energideklaration — bifogad i objektsbeskrivning" },
+      { key: "arsredovisning", label: "Årsredovisning (senaste 3 år) — bifogad i objektsbeskrivning" },
+      { key: "stadgar", label: "Föreningsstadgar — bifogade i objektsbeskrivning" },
+      ...base,
+    ];
+  }
+  if (propertyClass === "tomt") {
+    return [
+      { key: "energi", label: "Energideklaration — ej krav på obebyggd tomt, kontrollera om relevant" },
+      { key: "pantbrev", label: "Pantbrev och inteckningar — kontrollerade via Lantmäteriet" },
+      { key: "servitut", label: "Servitut och samfälligheter — noterade i objektsbeskrivning" },
+      ...base,
+    ];
+  }
+  return [
+    { key: "energi", label: "Energideklaration — bifogad i objektsbeskrivning" },
+    { key: "besiktning", label: "Besiktningsprotokoll — spekulanter informerade om rätten att besiktiga" },
+    { key: "pantbrev", label: "Pantbrev och inteckningar — kontrollerade via Lantmäteriet" },
+    { key: "servitut", label: "Servitut och samfälligheter — noterade i objektsbeskrivning" },
+    { key: "make_samtycke", label: "Maka/make-samtycke — bekräftat om relevant" },
+    ...base,
+  ];
+}
+
+async function initComplianceCard(data) {
+  const listEl = shadowRoot?.getElementById("scout-compliance-list");
+  if (!listEl) {
+    return;
+  }
+  const items = getComplianceItems(data.propertyClass || "unknown");
+  let state = {};
+  if (data.listingId) {
+    const stored = await chrome.storage.local.get(`listing_${data.listingId}`);
+    state = stored[`listing_${data.listingId}`]?.compliance || {};
+  }
+  function render() {
+    const done = items.filter((i) => state[i.key]).length;
+    const barColor = done === items.length ? "#16a34a" : done >= Math.ceil(items.length * 0.7) ? "#ca8a04" : "#dc2626";
+    listEl.innerHTML = `<div style="font-size:11px;color:${barColor};font-weight:600;margin-bottom:8px">${done}/${items.length} kontrollpunkter klara</div>
+${items.map((item) => `<label style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;cursor:pointer;border-bottom:1px solid #f3f4f6;font-size:11px;line-height:1.4">
+  <input type="checkbox" data-key="${item.key}" ${state[item.key] ? "checked" : ""} style="margin-top:2px;flex-shrink:0;accent-color:#16a34a">
+  <span style="color:${state[item.key] ? "#9ca3af" : "#374151"};text-decoration:${state[item.key] ? "line-through" : "none"}">${item.label}</span>
+</label>`).join("")}
+<div style="font-size:10px;color:#9ca3af;margin-top:8px">Källa: Fastighetsmäklarlagen (2021:516)</div>`;
+    listEl.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+      cb.addEventListener("change", async () => {
+        state[cb.dataset.key] = cb.checked;
+        if (data.listingId) {
+          const key = `listing_${data.listingId}`;
+          const stored = await chrome.storage.local.get(key);
+          const existing = stored[key] || { listingId: data.listingId, compliance: {} };
+          existing.compliance = { ...state };
+          await chrome.storage.local.set({ [key]: existing });
+        }
+        render();
+      });
+    });
+  }
+  render();
+}
+
+async function addBesiktningQAButtonIfBroker(block, items) {
+  const tier = await getTier();
+  if (tier === "consumer") {
+    return;
+  }
+  const hasRelevant = items.some((i) => {
+    const r = (i.risk || "").toLowerCase();
+    return r === "röd" || r === "red" || r === "gul" || r === "yellow";
+  });
+  if (!hasRelevant) {
+    return;
+  }
+  const btn = document.createElement("button");
+  btn.className = "scout-btn secondary";
+  btn.textContent = "🗣️ Köparfrågor & svar";
+  btn.style.cssText = "margin-top:8px;width:100%";
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    btn.textContent = "Genererar...";
+    try {
+      await openBesiktningQAWindow(items);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "🗣️ Köparfrågor & svar";
+    }
+  });
+  block.appendChild(btn);
+}
+
+async function openBesiktningQAWindow(items) {
+  const d = currentPropertyData;
+  const response = await chrome.runtime.sendMessage({
+    type: "BESIKTNING_BUYER_QA",
+    items,
+    address: d?.address,
+  });
+  if (response?.error) {
+    alert("Fel vid generering: " + response.error);
+    return;
+  }
+  const qa = response?.qa || [];
+  if (qa.length === 0) {
+    alert("Inga röda eller gula fynd att generera frågor från.");
+    return;
+  }
+  const date = new Date().toLocaleDateString("sv-SE");
+  const address = d?.address || "Fastighet";
+  const w = window.open("", "_blank", "width=680,height=560,resizable=yes");
+  if (!w) {
+    return;
+  }
+  const safeAddr = address.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const qaHtml = qa.map((pair) => {
+    const q = (pair.fraga || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const a = (pair.svar || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return `<div class="qa-block"><div class="qa-q">❓ ${q}</div><div class="qa-a">${a}</div></div>`;
+  }).join("");
+  w.document.write(`<!DOCTYPE html>
+<html lang="sv">
+<head><meta charset="UTF-8"><title>Köparfrågor</title>
+<style>
+  body{font-family:Georgia,serif;max-width:580px;margin:40px auto;padding:0 20px;color:#1a1a1a;line-height:1.7}
+  h2{font-size:16px;margin-bottom:4px}
+  .meta{font-size:12px;color:#6b7280;margin-bottom:24px}
+  .qa-block{margin-bottom:20px;border-left:3px solid #e5e7eb;padding-left:14px}
+  .qa-q{font-weight:700;font-size:13px;margin-bottom:6px;color:#1a3c5e}
+  .qa-a{font-size:13px;color:#374151}
+  .copy-btn{margin-top:24px;padding:10px 20px;background:#1a3c5e;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer}
+  .copy-btn:hover{background:#15304d}
+  .feedback{font-size:12px;color:#166534;margin-top:8px;display:none}
+  @media print{.copy-btn,.feedback{display:none}}
+</style>
+</head>
+<body>
+<h2>${safeAddr}</h2>
+<div class="meta">Köparfrågor från besiktning · ${date} · AI Property Scout</div>
+<div id="qa-content">${qaHtml}</div>
+<button class="copy-btn" onclick="var t=document.getElementById('qa-content');var lines=[];t.querySelectorAll('.qa-block').forEach(b=>{lines.push('F: '+b.querySelector('.qa-q').textContent.replace('❓ ',''));lines.push('S: '+b.querySelector('.qa-a').textContent);lines.push('');});navigator.clipboard.writeText(lines.join('\\n')).then(()=>{var f=document.querySelector('.feedback');f.style.display='block';setTimeout(()=>f.style.display='none',2500)})">📋 Kopiera alla</button>
+<div class="feedback">✓ Kopierad!</div>
+</body></html>`);
+  w.document.close();
+}
+
+async function addBrfSummaryButtonIfBroker(block, brfData) {
+  const tier = await getTier();
+  if (tier === "consumer") {
+    return;
+  }
+  const btn = document.createElement("button");
+  btn.className = "scout-btn secondary";
+  btn.textContent = "📨 BRF-sammanfattning för klient";
+  btn.style.cssText = "margin-top:8px;width:100%";
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    btn.textContent = "Genererar...";
+    try {
+      await openBrfBuyerSummaryWindow(brfData);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "📨 BRF-sammanfattning för klient";
+    }
+  });
+  block.appendChild(btn);
+}
+
+async function openBrfBuyerSummaryWindow(brfData) {
+  const d = currentPropertyData;
+  const response = await chrome.runtime.sendMessage({
+    type: "BRF_BUYER_SUMMARY",
+    brfData,
+    address: d?.address,
+  });
+  if (response?.error) {
+    alert("Fel vid generering: " + response.error);
+    return;
+  }
+  const text = response?.text || "";
+  const date = new Date().toLocaleDateString("sv-SE");
+  const address = d?.address || "Fastighet";
+  const w = window.open("", "_blank", "width=640,height=500,resizable=yes");
+  if (!w) {
+    return;
+  }
+  const safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  w.document.write(`<!DOCTYPE html>
+<html lang="sv">
+<head><meta charset="UTF-8"><title>BRF-sammanfattning</title>
+<style>
+  body{font-family:Georgia,serif;max-width:540px;margin:40px auto;padding:0 20px;color:#1a1a1a;line-height:1.7}
+  h2{font-size:16px;margin-bottom:4px}
+  .meta{font-size:12px;color:#6b7280;margin-bottom:24px}
+  .text{font-size:14px;white-space:pre-wrap}
+  .copy-btn{margin-top:24px;padding:10px 20px;background:#1a3c5e;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer}
+  .copy-btn:hover{background:#15304d}
+  .feedback{font-size:12px;color:#166534;margin-top:8px;display:none}
+  @media print{.copy-btn,.feedback{display:none}}
+</style>
+</head>
+<body>
+<h2>${address.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</h2>
+<div class="meta">BRF-sammanfattning · ${date} · AI Property Scout</div>
+<div class="text" id="summary-text">${safeText}</div>
+<button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('summary-text').textContent).then(()=>{var f=document.querySelector('.feedback');f.style.display='block';setTimeout(()=>f.style.display='none',2500)})">📋 Kopiera text</button>
+<div class="feedback">✓ Kopierad!</div>
+</body></html>`);
+  w.document.close();
 }
 
 function buildTrafficItem(title, risk, description) {
