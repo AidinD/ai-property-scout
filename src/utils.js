@@ -166,6 +166,32 @@ export function parseAIJson(text) {
   try {
     return JSON.parse(cleaned);
   } catch (_) {}
+  // Truncation recovery for arrays: extract all complete top-level objects
+  const arrStart = cleaned.indexOf("[");
+  if (arrStart !== -1) {
+    const objects = [];
+    let depth = 0;
+    let objStart = -1;
+    for (let i = arrStart + 1; i < cleaned.length; i++) {
+      if (cleaned[i] === "{") {
+        if (depth === 0) {
+          objStart = i;
+        }
+        depth++;
+      } else if (cleaned[i] === "}") {
+        depth--;
+        if (depth === 0 && objStart !== -1) {
+          try {
+            objects.push(JSON.parse(cleaned.slice(objStart, i + 1)));
+          } catch (_) {}
+          objStart = -1;
+        }
+      }
+    }
+    if (objects.length > 0) {
+      return objects;
+    }
+  }
   // Truncation recovery: find last top-level closing brace
   const start = cleaned.indexOf("{");
   if (start !== -1) {

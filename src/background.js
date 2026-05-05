@@ -545,12 +545,14 @@ async function handleBesiktningBuyerQA(msg) {
   const isBroker = tier && tier !== "consumer" && tier !== "consumer_pro";
   const relevantItems = (items || []).filter((i) => {
     const r = (i.risk || "").toLowerCase();
-    return r === "röd" || r === "red" || r === "gul" || r === "yellow";
+    return r !== "grön" && r !== "green";
   }).slice(0, 6);
-  if (relevantItems.length === 0) {
+  const allItems = (items || []).slice(0, 6);
+  const useItems = relevantItems.length > 0 ? relevantItems : allItems;
+  if (useItems.length === 0) {
     return { ok: true, qa: [] };
   }
-  const itemLines = relevantItems.map((i) => `- ${i.kategori}: ${i.sammanfattning}`).join("\n");
+  const itemLines = useItems.map((i) => `- ${i.kategori} (${i.risk || "okänd risk"}): ${i.sammanfattning}`).join("\n");
   const systemPrompt = `Du är en erfaren fastighetsmäklare. Baserat på fynd i ett besiktningsprotokoll, generera de frågor som köpare sannolikt ställer och hur mäklaren bör svara — faktabaserat och utan att minimera risken. Svara ENBART med JSON-array, inga markdown-fences:
 [
   { "fraga": "Vad innebär fyndet om [kategori]?", "svar": "..." }
@@ -562,9 +564,9 @@ Max 5 Q&A-par. Håll varje svar under 60 ord. Fokusera på de mest kritiska fynd
     : (safeProvider === "openai" ? CONSUMER_DEFAULT_MODEL_OPENAI : CONSUMER_DEFAULT_MODEL_ANTHROPIC);
   let body;
   if (safeProvider === "anthropic") {
-    body = { model, system: systemPrompt, messages: [{ role: "user", content: userContent }], max_tokens: 600 };
+    body = { model, system: systemPrompt, messages: [{ role: "user", content: userContent }], max_tokens: 1000 };
   } else {
-    body = { model, messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userContent }], max_tokens: 600 };
+    body = { model, messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userContent }], max_tokens: 1000 };
   }
   const result = await enqueueRequest({ body }, "custom_prompt");
   const rawText = safeProvider === "anthropic" ? result?.content?.[0]?.text : result?.choices?.[0]?.message?.content;
@@ -1128,7 +1130,7 @@ Regler:
       };
     } else {
       body = {
-        model: textAnalyzeModel,
+        model: analyzeModel,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: filtered.text }
@@ -1137,7 +1139,6 @@ Regler:
       };
     }
   }
-  console.log("[Scout] ANALYZE path:", pdfBase64 ? `pdfBase64 (${pdfBase64.length} chars)` : `pdfText (${(pdfText||"").length} chars)`, "model:", body.model || "(callAI default)", "docType:", docType, "max_tokens:", body.max_tokens);
   try {
     const result = await enqueueRequest({ body }, "pdf");
     const rawText = safeProvider === "anthropic" ? result?.content?.[0]?.text : result?.choices?.[0]?.message?.content;

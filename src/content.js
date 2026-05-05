@@ -2006,25 +2006,53 @@ function attachSidebarListeners(data) {
     }
   });
   attachAgentPdfListeners(shadowRoot, data);
+  const MANUAL_DOC_LABELS = { besiktning: "Besiktning", arsredovisning: "Årsredovisning", stadgar: "Stadgar" };
+
+  // Auto-restore manually dropped documents from cache on sidebar load
+  if (data.listingId) {
+    const manualDocTypes = Object.keys(MANUAL_DOC_LABELS);
+    const cacheKeys = manualDocTypes.map((dt) => `pdfCache_${data.listingId}_${dt}_manual`);
+    chrome.storage.local.get(cacheKeys).then((stored) => {
+      for (const dt of manualDocTypes) {
+        const key = `pdfCache_${data.listingId}_${dt}_manual`;
+        const hit = stored[key];
+        if (hit) {
+          renderResults(hit.data, hit.docType, false, MANUAL_DOC_LABELS[dt]);
+        }
+      }
+    });
+  }
+
   analyzeBtn?.addEventListener("click", async () => {
     if (!pdfContent) {
       return;
     }
     analyzeBtn.disabled = true;
     setStatus('<span class="scout-spinner"></span> AI analyserar dokument...');
-    trackEvent("pdf_analyze_clicked", { doc_type: docType || "unknown", tier: await getTier(), site });
-    const response = await chrome.runtime.sendMessage({
+    const resolvedDocType = docType || guessDocType(pdfContent);
+    trackEvent("pdf_analyze_clicked", { doc_type: resolvedDocType, tier: await getTier(), site });
+    const isBase64 = typeof pdfContent === "string" && pdfContent.startsWith("data:") && pdfContent.includes(";base64,");
+    const msgPayload = {
       type: "ANALYZE",
-      docType: docType || guessDocType(pdfContent),
-      pdfText: pdfContent,
-      propertyData: data
-    });
+      docType: resolvedDocType,
+      propertyData: data,
+    };
+    if (isBase64) {
+      msgPayload.pdfBase64 = pdfContent.split(";base64,")[1];
+    } else {
+      msgPayload.pdfText = pdfContent;
+    }
+    const response = await chrome.runtime.sendMessage(msgPayload);
     analyzeBtn.disabled = false;
     setStatus("");
     if (response?.error) {
       handleAnalysisError(response.error);
     } else {
-      renderResults(response.data, response.docType, response.truncated);
+      renderResults(response.data, response.docType, response.truncated, MANUAL_DOC_LABELS[resolvedDocType] || resolvedDocType);
+      if (data.listingId) {
+        const cacheKey = `pdfCache_${data.listingId}_${resolvedDocType}_manual`;
+        chrome.storage.local.set({ [cacheKey]: { data: response.data, docType: response.docType || resolvedDocType, ts: Date.now() } });
+      }
     }
   });
   upgradeBtn?.addEventListener("click", () => {
@@ -2039,7 +2067,8 @@ function attachSidebarListeners(data) {
       reader.onload = (e) => {
         const text = e.target.result;
         pdfContent = text;
-        docType = guessDocType(text);
+        // For binary PDFs use filename for docType guessing — base64 content is unreliable
+        docType = file.type === "application/pdf" ? guessDocType(file.name) : guessDocType(text);
         fillDropZone(text, "manual");
         resolve();
       };
@@ -2378,6 +2407,9 @@ async function initComplianceCard(data) {
     state = stored[`listing_${data.listingId}`]?.compliance || {};
   }
   function render() {
+    if (!listEl) {
+      return;
+    }
     const done = items.filter((i) => state[i.key]).length;
     const barColor = done === items.length ? "#16a34a" : done >= Math.ceil(items.length * 0.7) ? "#ca8a04" : "#dc2626";
     listEl.innerHTML = `<div style="font-size:11px;color:${barColor};font-weight:600;margin-bottom:8px">${done}/${items.length} kontrollpunkter klara</div>
@@ -2410,7 +2442,7 @@ async function addBesiktningQAButtonIfBroker(block, items) {
   }
   const hasRelevant = items.some((i) => {
     const r = (i.risk || "").toLowerCase();
-    return r === "röd" || r === "red" || r === "gul" || r === "yellow";
+    return r !== "grön" && r !== "green";
   });
   if (!hasRelevant) {
     return;
@@ -2480,8 +2512,28 @@ async function openBesiktningQAWindow(items) {
 <h2>${safeAddr}</h2>
 <div class="meta">Köparfrågor från besiktning · ${date} · AI Property Scout</div>
 <div id="qa-content">${qaHtml}</div>
-<button class="copy-btn" onclick="var t=document.getElementById('qa-content');var lines=[];t.querySelectorAll('.qa-block').forEach(b=>{lines.push('F: '+b.querySelector('.qa-q').textContent.replace('❓ ',''));lines.push('S: '+b.querySelector('.qa-a').textContent);lines.push('');});navigator.clipboard.writeText(lines.join('\\n')).then(()=>{var f=document.querySelector('.feedback');f.style.display='block';setTimeout(()=>f.style.display='none',2500)})">📋 Kopiera alla</button>
-<div class="feedback">✓ Kopierad!</div>
+<button class="copy-btn" id="copy-btn">📋 Kopiera alla</button>
+<div class="feedback" id="feedback">✓ Kopierad!</div>
+<script>
+document.getElementById('copy-btn').addEventListener('click', function() {
+  var t = document.getElementById('qa-content');
+  if (!t) return;
+  var lines = [];
+  t.querySelectorAll('.qa-block').forEach(function(b) {
+    var q = b.querySelector('.qa-q');
+    var a = b.querySelector('.qa-a');
+    if (q && a) {
+      lines.push('F: ' + q.textContent.replace('\\u2753 ', '').replace('\\u2753', ''));
+      lines.push('S: ' + a.textContent);
+      lines.push('');
+    }
+  });
+  navigator.clipboard.writeText(lines.join('\\n')).then(function() {
+    var f = document.getElementById('feedback');
+    if (f) { f.style.display = 'block'; setTimeout(function() { f.style.display = 'none'; }, 2500); }
+  });
+});
+</script>
 </body></html>`);
   w.document.close();
 }
