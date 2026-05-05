@@ -75,6 +75,9 @@ Alla analyser sparas DUBBELT: i befintliga `pdfCache_*`-nycklar OCH i `listing_*
 - **Kopiera för klientmail** — formaterar alla analyser som plaintext till clipboard
 - **Upplysningslista** — extraherar `compliance_flagga:true` + röda items → nytt fönster
 - **Exportera rapport** — PDF-preview i popup + "Ladda ner HTML"-knapp
+- **FML-checklista** — fastighetstypanpassad Fastighetsmäklarlagen-checklista med klickbara bockar, progress-räknare och persistent lagring (`listing_{id}.compliance`)
+- **BRF-sammanfattning för klient** (`BRF_BUYER_SUMMARY`) — genererar ~180-ords köparfokuserad text från årsredovisningsdata, öppnas i popup-fönster
+- **Besiktning köparfrågor & svar** (`BESIKTNING_BUYER_QA`) — filtrerar röda/gula besiktningsfynd och genererar 3–5 Q&A-par som JSON, öppnas i popup-fönster med kopierings-stöd
 
 ---
 
@@ -191,6 +194,9 @@ Funktioner som skyddas av `isBroker`-checken i content.js:
 - Exportera rapport (`scout-export-section`)
 - Kopiera för klientmail
 - Upplysningslista
+- FML-checklista (`scout-compliance-card`) — visas direkt vid sidebar-laddning
+- "BRF-sammanfattning för klient"-knapp — visas efter årsredovisningsanalys
+- "Köparfrågor & svar"-knapp — visas efter besiktningsanalys
 
 ---
 
@@ -270,6 +276,22 @@ Funktioner som skyddas av `isBroker`-checken i content.js:
 
 - **Besiktningsprotokoll**: returnerar JSON-array med kategori + risk (röd/gul/grön) + sammanfattning
 - **Årsredovisning**: returnerar JSON-objekt med skuld/kvm, äkta/oäkta BRF, renoveringar, avgiftshöjning, parkering, IMD
+- PDF cachas per listing+docType: `pdfCache_{listingId}_{docType}_manual` — återladdas automatiskt vid sidebar-laddning
+- PDF-filer skickas som base64 direkt till Claude (ej textextraktion) — `pdfBase64` i payload
+
+### BRF-sammanfattning för klient (`BRF_BUYER_SUMMARY`) — broker only
+
+- Triggas via knapp som visas efter årsredovisningsanalys
+- Tar redan-parsad BRF-data (JSON-objekt) som input
+- Genererar ~180 ords köparfokuserad löptext på svenska
+- Öppnas i `window.open`-popup med "Kopiera"-knapp
+
+### Besiktning köparfrågor & svar (`BESIKTNING_BUYER_QA`) — broker only
+
+- Triggas via knapp som visas efter besiktningsanalys
+- Filtrerar bort gröna fynd (`r !== "grön" && r !== "green"`), fallback till alla om inga non-gröna finns
+- Genererar 3–5 Q&A-par som JSON-array: `[{ fraga, svar }]`
+- Öppnas i `window.open`-popup med "Kopiera alla"-knapp
 
 ### Mäklartext-analys (`INITIAL_ANALYSIS`)
 
@@ -338,6 +360,8 @@ Ordning uppifrån och ned:
 5. Kostnadskalkyl (kontantinsats, ränta-slider, ränteavdrag) — stöder villa, bostadsrätt, tomt
 6. Dokumentanalys / PDF-drop
 7. Analysresultat
+8. **[Broker only]** FML-checklista (`scout-compliance-card`)
+9. **[Broker only]** Noteringar (`scout-notes-card`)
 
 Sidebaren är injekcerad i en Shadow DOM (`mode: 'open'`) för att undvika CSS-konflikter med sidan.
 
@@ -353,7 +377,7 @@ Schema: `MAJOR.MINOR.PATCH`
 - **MINOR** (+0.1.0) — ny funktion eller sektion i sidebaren
 - **MAJOR** (+1.0.0) — arkitekturförändring, ny tier-logik, breaking change
 
-Nuvarande version: `1.8.0`
+Nuvarande version: `1.10.1`
 
 **Bumpa versionen INNAN `npm run build` körs — inte i efterhand.** Varje `npm run build` ska föregås av en versionsbump om koden ändrades.
 
