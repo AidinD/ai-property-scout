@@ -181,7 +181,7 @@
       display: grid;
       grid-template-columns: repeat(5, 1fr);
       gap: 16px; margin-top: 48px;
-      align-items: start;
+      align-items: stretch;
     }
     @media (max-width: 1000px) {
       .pricing-grid { grid-template-columns: repeat(3, 1fr); }
@@ -191,6 +191,8 @@
       border-radius: 16px;
       padding: 24px 20px;
       background: #fff;
+      display: flex;
+      flex-direction: column;
     }
     .price-card.featured {
       border-color: var(--blue-dark);
@@ -202,7 +204,7 @@
     }
     .price-card.featured .price-label { color: var(--blue-dark); }
     .price-name { font-size: 18px; font-weight: 800; margin-bottom: 4px; }
-    .price-desc { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.5; margin-top: 10px; }
+    .price-desc { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.5; margin-top: 10px; flex: 1; }
     .price-cta {
       display: block; width: 100%; margin-top: 20px;
       background: var(--blue-dark); color: #fff;
