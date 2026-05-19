@@ -179,9 +179,12 @@
     /* ── Pricing ── */
     .pricing-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 16px; margin-top: 48px;
       align-items: start;
+    }
+    @media (max-width: 1000px) {
+      .pricing-grid { grid-template-columns: repeat(3, 1fr); }
     }
     .price-card {
       border: 1px solid var(--border);
@@ -293,7 +296,7 @@
     </a>
     <a href="#features" class="btn-ghost">Se funktioner →</a>
   </div>
-  <div class="hero-sub">Kräver prenumeration · Inga manuella inställningar — AI ingår</div>
+  <div class="hero-sub">Gratis att prova · Ingen egen AI-nyckel behövs</div>
 </div>
 
 <!-- Sites -->
@@ -374,8 +377,8 @@
       </div>
       <div class="step">
         <div class="step-num">2</div>
-        <h3>Aktivera prenumeration</h3>
-        <p>Köp en licens och ange licensnyckeln i extensionens inställningar. Ingen egen AI-nyckel behövs.</p>
+        <h3>Prova gratis eller aktivera licens</h3>
+        <p>Starta direkt med 3 gratis analyser — eller ange en licensnyckel för obegränsad åtkomst. Ingen egen AI-nyckel behövs.</p>
       </div>
       <div class="step">
         <div class="step-num">3</div>
@@ -399,6 +402,13 @@
     <p class="section-intro">Alla tiers använder central AI — ingen egen API-nyckel behövs. Mäklare och partners får dessutom yrkesanpassade funktioner.</p>
 
     <div class="pricing-grid">
+
+      <div class="price-card">
+        <div class="price-label">Kom igång</div>
+        <div class="price-name">Gratis</div>
+        <p class="price-desc">Prova extensionen utan kostnad. Inkluderar kostnadskalkyl och nyckelordssökning — 3 AI-analyser totalt.</p>
+        <a href="https://chrome.google.com/webstore" class="price-cta ghost">Lägg till i Chrome</a>
+      </div>
 
       <div class="price-card">
         <div class="price-label">Privatperson</div>
@@ -436,6 +446,7 @@
         <thead>
           <tr>
             <th class="col-feature">Funktion</th>
+            <th>Gratis</th>
             <th>Spekulant</th>
             <th>Broker Solo</th>
             <th class="col-featured">Broker Pro</th>
@@ -443,73 +454,85 @@
           </tr>
         </thead>
         <tbody>
-          <tr class="section-row"><td class="col-feature">Grundfunktioner</td><td></td><td></td><td></td><td></td></tr>
+          <tr class="section-row"><td class="col-feature">Grundfunktioner</td><td></td><td></td><td></td><td></td><td></td></tr>
           <tr>
             <td class="col-feature">Automatisk nyckelordsscanning</td>
-            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
           </tr>
           <tr>
             <td class="col-feature">Kostnadskalkyl (lagfart, pantbrev, ränta)</td>
-            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
           </tr>
-          <tr class="section-row"><td class="col-feature">AI-analyser</td><td></td><td></td><td></td><td></td></tr>
+          <tr class="section-row"><td class="col-feature">AI-analyser</td><td></td><td></td><td></td><td></td><td></td></tr>
           <tr>
             <td class="col-feature">AI-analys av mäklartext</td>
-            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+            <td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
           </tr>
           <tr>
             <td class="col-feature">PDF-analys (besiktning, årsredovisning)</td>
-            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+            <td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
           </tr>
           <tr>
             <td class="col-feature">Mäklarsida-extraktion</td>
-            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+            <td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
           </tr>
           <tr>
             <td class="col-feature">Fri fråga om fastigheten</td>
-            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+            <td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
           </tr>
           <tr>
-            <td class="col-feature">Analyser per månad</td>
-            <td><span class="val">15</span></td><td><span class="val">50</span></td><td><span class="val">150</span></td><td><span class="val">Obegränsat</span></td>
+            <td class="col-feature">Analyser</td>
+            <td><span class="val">3 totalt</span></td><td><span class="val">15/mån</span></td><td><span class="val">50/mån</span></td><td><span class="val">150/mån</span></td><td><span class="val">Obegränsat</span></td>
           </tr>
-          <tr class="section-row"><td class="col-feature">Portfolio</td><td></td><td></td><td></td><td></td></tr>
+          <tr class="section-row"><td class="col-feature">Portfolio</td><td></td><td></td><td></td><td></td><td></td></tr>
           <tr>
             <td class="col-feature">Spara och följa objekt</td>
-            <td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+            <td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
           </tr>
           <tr>
             <td class="col-feature">Objekt i portfolio</td>
-            <td><span class="val">30</span></td><td><span class="val">200</span></td><td><span class="val">Obegränsat</span></td><td><span class="val">Obegränsat</span></td>
+            <td><span class="dash">–</span></td><td><span class="val">30</span></td><td><span class="val">200</span></td><td><span class="val">Obegränsat</span></td><td><span class="val">Obegränsat</span></td>
           </tr>
-          <tr class="section-row"><td class="col-feature">Mäklarfunktioner</td><td></td><td></td><td></td><td></td></tr>
+          <tr class="section-row"><td class="col-feature">Mäklarfunktioner</td><td></td><td></td><td></td><td></td><td></td></tr>
           <tr>
             <td class="col-feature">Noteringar per objekt</td>
-            <td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+            <td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="col-feature">FML-checklista (Fastighetsmäklarlagen)</td>
+            <td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="col-feature">BRF-sammanfattning för klient</td>
+            <td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td class="col-feature">Besiktning — köparfrågor &amp; svar</td>
+            <td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
           </tr>
           <tr>
             <td class="col-feature">Exportera rapport (PDF / HTML)</td>
-            <td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+            <td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
           </tr>
           <tr>
             <td class="col-feature">Kopiera sammanfattning för klientmail</td>
-            <td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+            <td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
           </tr>
           <tr>
             <td class="col-feature">Upplysningslista</td>
-            <td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+            <td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
           </tr>
           <tr>
             <td class="col-feature">Branded PDF-export</td>
-            <td><span class="dash">–</span></td><td><span class="val">Agentnamn</span></td><td><span class="val">Agentnamn</span></td><td><span class="val">White-label</span></td>
+            <td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="val">Agentnamn</span></td><td><span class="val">Agentnamn</span></td><td><span class="val">White-label</span></td>
           </tr>
           <tr>
             <td class="col-feature">Teamlicens (3 användare)</td>
-            <td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
+            <td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td>
           </tr>
           <tr>
             <td class="col-feature">Eget varumärke (logotyp &amp; färger)</td>
-            <td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="check">✓</span></td>
+            <td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="dash">–</span></td><td><span class="check">✓</span></td>
           </tr>
         </tbody>
       </table>
@@ -524,9 +547,7 @@
   <p>AI-driven analys för svenska fastighetsköpare och mäklare.</p>
   <div class="footer-links">
     <a href="https://chrome.google.com/webstore">Chrome Web Store</a>
-    <a href="mailto:aipropertyscout@gmail.com">Kontakt</a>
     <a href="/privacy">Integritetspolicy</a>
-    <a href="https://github.com/AidinD/ai-property-scout">GitHub</a>
   </div>
   <p style="margin-top:20px;font-size:12px">© 2026 AI Property Scout · Beslutsstöd — ersätter inte professionell rådgivning.</p>
 </footer>
