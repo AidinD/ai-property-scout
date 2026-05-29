@@ -39,6 +39,40 @@ async function validateLicense(licenseKey) {
     return cached.tier;
   }
   const isExpired = cached?.expiry && cached.expiry <= Date.now();
+
+  // Beta keys — validated via CF Worker against BETA_KEYS Worker secret
+  if (licenseKey.startsWith("SCOUT-BETA-")) {
+    try {
+      const res = await fetch(CF_WORKER_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Scout-Token": SCOUT_TOKEN,
+          "X-Analysis-Type": "beta-validate",
+          "X-Beta-Key": licenseKey
+        },
+        body: JSON.stringify({})
+      });
+      if (!res.ok) {
+        throw new Error("invalid_license");
+      }
+      const data = await res.json();
+      if (!data.valid) {
+        throw new Error("invalid_license");
+      }
+      const tier = data.tier || "broker_pro";
+      await chrome.storage.local.set({
+        license: { key: licenseKey, tier, expiry: Date.now() + 864e5 * 30 }
+      });
+      return tier;
+    } catch (e) {
+      if (e.message === "invalid_license") {
+        throw e;
+      }
+      return !isExpired && cached?.tier ? cached.tier : "consumer";
+    }
+  }
+
   let data;
   try {
     const res = await fetch("https://api.lemonsqueezy.com/v1/licenses/validate", {
