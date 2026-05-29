@@ -16,3 +16,9 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Store uploads
+*.zip
+
+# Dev artifacts
+icon-preview.html
