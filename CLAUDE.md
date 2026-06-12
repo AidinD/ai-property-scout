@@ -377,7 +377,7 @@ Schema: `MAJOR.MINOR.PATCH`
 - **MINOR** (+0.1.0) — ny funktion eller sektion i sidebaren
 - **MAJOR** (+1.0.0) — arkitekturförändring, ny tier-logik, breaking change
 
-Nuvarande version: `1.10.1`
+Nuvarande version: `1.10.3`
 
 **Bumpa versionen INNAN `npm run build` körs — inte i efterhand.** Varje `npm run build` ska föregås av en versionsbump om koden ändrades.
 

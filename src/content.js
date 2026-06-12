@@ -2132,7 +2132,12 @@ function runCalculator(data, propertyClass) {
   const kontant = parseInt(kontantInput?.value || "0", 10);
   const räntaPct = parseFloat(räntaInput?.value || "4.0");
   const räntaDec = räntaPct / 100;
-  const driftkostnad = parseSEK(data.driftkostnad) || 0;
+  const driftRaw = data.driftkostnad || "";
+  let driftkostnad = parseSEK(driftRaw) || 0;
+  // Hemnet anger driftkostnad i kr/år, Booli i kr/mån. Normalisera till mån.
+  if (/\bår\b/i.test(driftRaw)) {
+    driftkostnad = Math.round(driftkostnad / 12);
+  }
   const avgift = parseSEK(data.avgift) || 0;
   const pantbrev = parseSEK(data.pantbrev) || 0;
   if (!price || !kontant) {
